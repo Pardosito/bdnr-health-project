@@ -11,6 +11,10 @@ This is a system designed for medical offices with specialized doctors. The idea
 This is meant to aliviate from unnecesary pain dealing with old-fashioned systems and applications, and to help them focus in what really matters.
 
 ## Workflow
+### Activate virtual enviroment
+### Install necessary libraries
+Make sure to run 'pip install -r requirements.txt' to install the necessary libraries into your venv.
+
 ### Populate data
 To make use of this project, first run the populate.py file to make sure each DB has data to run any potential query.
 

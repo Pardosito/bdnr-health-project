@@ -3,7 +3,7 @@
 ## Project by:
 - Ian Eugenio Rodríguez Wong
 - Juan Pablo González Mendoza
-- José Alfredo Calvillo Gómez
+
 
 ## Description
 This is a system designed for medical offices with specialized doctors. The idea is for these offices to be able to register their doctors, as well as their patients and have medical records for each of them. The system will also allow for doctors to keep real-time information of their consultations, like diagnosis or particular treatments. It will also allow for the doctors to identify special patterns such as second-hand recommendations for patients or identify irregular medication recommendations, among others.

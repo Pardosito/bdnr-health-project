@@ -1,87 +1,93 @@
+from connect import get_mongo, get_cassandra
+from db_tests import (
+    mongo_registrar_doctor,
+    mongo_buscar_por_especialidad,
+    mongo_registrar_paciente,
+    mongo_consultar_paciente,
+
+    cassandra_registrar_visita,
+    cassandra_historial_visitas,
+    cassandra_visitas_del_dia
+)
+
+
 def main():
+
+    print("Conectando a bases de datos...")
+    mongo = get_mongo()
+    cassandra = get_cassandra()
+
+    print("\n=== Plataforma de Integración de Datos de Salud ===")
+
     while True:
-        print("\n=== Plataforma de Integración de Datos de Salud ===")
         print("\n--- MongoDB ---")
         print("1. Registrar nuevo doctor")
         print("2. Buscar doctor por especialidad")
         print("3. Registrar nuevo paciente")
         print("4. Consultar perfil de paciente")
-        print("5. Crear expediente de paciente")
-        print("6. Buscar alergias/padecimientos de un paciente")
 
         print("\n--- Cassandra ---")
-        print("7. Registrar inicio/fin de visita médica")
-        print("8. Consultar historial de visitas de un paciente")
-        print("9. Consultar visitas programadas para un día")
-        print("10. Registrar receta médica para una visita")
-        print("11. Registrar signos vitales para una visita")
-        print("12. Registrar acceso de auditoría a expediente")
+        print("5. Registrar inicio/fin de visita médica")
+        print("6. Consultar historial de visitas de un paciente")
+        print("7. Consultar visitas programadas para un día")
 
-        print("\n--- Dgraph ---")
-        print("13. Encontrar pacientes de un doctor tratados por otro especialista")
-        print("14. Identificar medicamentos recetados juntos para una condición")
-        print("15. Sugerir doctor para segunda opinión")
-        print("16. Analizar red de un doctor")
+        print("\n0. Salir\n")
 
-        print("\n")
-        print("0. Salir")
+        choice = input("Seleccione una opción: ").strip()
 
-        choice = input("Seleccione opción: ")
-
+        #mondongo
         if choice == "1":
-            print("Registrando nuevo doctor\n")
-            pass
+            if mongo:
+                mongo_registrar_doctor(mongo)
+            else:
+                print("[ERROR] MongoDB no está conectado.")
+
         elif choice == "2":
-            print("Buscando doctores por especialidad\n")
-            pass
+            if mongo:
+                mongo_buscar_por_especialidad(mongo)
+            else:
+                print("[ERROR] MongoDB no está conectado.")
+
         elif choice == "3":
-            print("Registrando nuevo paciente\n")
-            pass
+            if mongo:
+                mongo_registrar_paciente(mongo)
+            else:
+                print("[ERROR] MongoDB no está conectado.")
+
         elif choice == "4":
-            print("Consultando paciente y expediente\n")
-            pass
+            if mongo:
+                mongo_consultar_paciente(mongo)
+            else:
+                print("[ERROR] MongoDB no está conectado.")
+
+        #cassandra
         elif choice == "5":
-            print("Añadiendo diagnóstico a expendiente\n")
-            pass
+            if cassandra:
+                cassandra_registrar_visita(cassandra)
+            else:
+                print("[ERROR] Cassandra no está conectada.")
+
         elif choice == "6":
-            print("Consultando padecimientos\n")
-            pass
+            if cassandra:
+                cassandra_historial_visitas(cassandra)
+            else:
+                print("[ERROR] Cassandra no está conectada.")
+
         elif choice == "7":
-            print("Registrando visita médica\n")
-            pass
-        elif choice == "8":
-            print("Consultando historial de visitas\n")
-            pass
-        elif choice == "9":
-            print("Consultando visitas del día\n")
-            pass
-        elif choice == "10":
-            print("Registrando visita médica\n")
-            pass
-        elif choice == "11":
-            print("Registrando signos vitales\n")
-            pass
-        elif choice == "12":
-            print("Registrando acceso para auditorías\n")
-            pass
-        elif choice == "13":
-            print("Analizando pacientes comúnes entre doctores\n")
-            pass
-        elif choice == "14":
-            print("Buscando múltiples preescripciones de medicamentos\n")
-            pass
-        elif choice == "15":
-            print("Buscando segunda opinión\n")
-            pass
-        elif choice == "16":
-            print("Analizando red de doctor\n")
-            pass
-        elif choice == '0':
+            if cassandra:
+                cassandra_visitas_del_dia(cassandra)
+            else:
+                print("[ERROR] Cassandra no está conectada.")
+
+        #salida
+        elif choice == "0":
             print("Saliendo del sistema.")
             break
+
         else:
             print("Opción inválida. Intente de nuevo.")
 
 
 if __name__ == "__main__":
     main()
+

@@ -3,7 +3,7 @@ from pymongo.errors import ServerSelectionTimeoutError, ConnectionFailure
 
 from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
-from cassandra.connection import NoHostAvailable
+from cassandra.cluster import NoHostAvailable
 
 import pydgraph
 
@@ -37,7 +37,7 @@ def get_cassandra():
     """
     try:
         cluster = Cluster(["127.0.0.1"])
-        session = cluster.connect("plataforma_salud")  # importante especificar keyspace
+        session = cluster.connect()  # importante especificar keyspace "plataforma_salud", lo declararemos ya que empecemos la creacion de tablas
         print("[Cassandra] Conectado correctamente.")
         return session
 

@@ -1,14 +1,28 @@
 from connect import get_mongo, get_cassandra, get_dgraph
-# from db_tests import (
-#     mongo_registrar_doctor,
-#     mongo_buscar_por_especialidad,
-#     mongo_registrar_paciente,
-#     mongo_consultar_paciente,
 
-#     cassandra_registrar_visita,
-#     cassandra_historial_visitas,
-#     cassandra_visitas_del_dia
-# )
+# servicios de mondongo
+from Mongo.doctores_service import (
+    registrar_doctor,
+    buscar_doctor,
+    filtrar_por_especialidad
+)
+
+from Mongo.pacientes_service import (
+    registrar_paciente,
+    consultar_paciente,
+    filtrar_pacientes,
+    obtener_info_medica
+)
+
+from Mongo.expedientes_service import (
+    crear_expediente,
+    agregar_padecimiento
+)
+
+from Mongo.pipelines import (
+    edad_promedio_y_meds,
+    buckets_por_edad
+)
 
 
 def main():
@@ -21,125 +35,141 @@ def main():
     print("\n=== Plataforma de Integración de Datos de Salud ===")
 
     while True:
-        print("SE ELIMINARÁN LAS DIVISIONES DE LAS DB, DE MOMENTO ESTÁN PARA FACILITAR LA CODIFICACÍON DEL PROYECTO")
-        print("\n--- mondongo de be AKA MongoDB ---")
+        print("\n--- MongoDB ---")
         print("1. Registrar nuevo doctor")
         print("2. Buscar doctor por nombre")
         print("3. Buscar doctor por especialidad")
         print("4. Registrar nuevo paciente")
         print("5. Crear expediente para paciente")
         print("6. Buscar paciente por nombre")
-        print("7. Buscar pacientes por sexo, rango de edad, medicamentos")
-        print("8. Mostrar padecimientos, alergias y tratamientos de un paciente")
+        print("7. Buscar pacientes por filtros")
+        print("8. Mostrar alergias, padecimientos y tratamientos del paciente")
         print("9. Añadir padecimiento a expediente de un paciente")
-        print("10. Mostrar ocurrencias y tratamientos de padecimientos")
-        print("11. Calcular grupos de edades de pacientes que padecen cierto padecimiento")
+        print("10. Pipeline — edad promedio y frecuencia de medicamentos")
+        print("11. Pipeline — buckets de edad por padecimiento")
 
-
-        print("\n--- trashy de be AKA Cassandra ---")
+        print("\n--- Cassandra ---")
         print("12. Registrar inicio/fin de visita médica")
         print("13. Consultar historial de visitas de un paciente")
         print("14. Consultar visitas programadas para un día")
         print("15. Registrar medición de signos vitales")
-        print("16. Mostrar historial de signo vital particular para un paciente")
-        print("17. Guardar receta médica de una visita")
-        print("18. Consultar todas las recetas de un doctor en rango de fecha")
-        print("19. Observar historial de accesos y registros a expedientes")
-        print("20. Consultar todos los diágnosticos de un doctor en rango de fecha")
-        print("21. Obtener diágnostico y tratamiento de paciente en fecha específica")
-        print("22. Consultar disponibilidad de doctor en fecha")
-
+        print("16. Mostrar historial de signo vital")
+        print("17. Guardar receta médica")
+        print("18. Consultar recetas por rango de fechas")
+        print("19. Historial de accesos a expedientes")
+        print("20. Diagnósticos de un doctor por fecha")
+        print("21. Diagnóstico + tratamiento por fecha")
+        print("22. Disponibilidad de doctor")
 
         print("\n--- Dgraph ---")
-        print("23. Mostrar pacientes de un doctor que han sido vistos por otro especialista")
-        print("24. Identificar medicamentos recetados en conjunto para tratar padecimientos")
-        print("25. Sugerir especialista para una segunda opinión")
-        print("26. Detectar posibles conflictos en tratamiento de paciente")
+        print("23. Pacientes de doctor vistos por otro especialista")
+        print("24. Medicamentos recetados juntos")
+        print("25. Sugerir especialista para segunda opinión")
+        print("26. Detectar conflictos de tratamiento")
         print("27. Analizar red de un doctor")
-        print("28. Consultar historial de tratamiento de un paciente")
-        print("29. Identificar pacientes que reciben alta cantidad de medicamentos")
-        print("30. Identificar posibles sobredosis")
-        print("31. Mostrar referencias entre doctores según pacientes en común")
-        print("32. Mostrar frecuencias de tratamientos de ciertos padecimientos por ciertas especialidades")
-        print("33. Generar reporte de padecimientos más comúnes por especialidad")
-
+        print("28. Ruta de tratamiento de un paciente")
+        print("29. Pacientes con muchos medicamentos")
+        print("30. Posibles sobredosis")
+        print("31. Referencias entre doctores")
+        print("32. Frecuencia de tratamientos por especialidad")
+        print("33. Padecimientos más comunes por especialidad")
 
         print("\n0. Salir\n")
 
         choice = int(input("Seleccione una opción: "))
 
         match choice:
+            # mondongo
             case 1:
-                print("1. Registrar nuevo doctor")
+                print("\n--- Registrar nuevo doctor ---")
+                data = {
+                    "nombre": input("Nombre: "),
+                    "especialidad": input("Especialidad: "),
+                    "subespecialidad": input("Subespecialidad: "),
+                    "cedula": input("Cédula: "),
+                    "telefono": input("Teléfono: "),
+                    "correo": input("Correo: "),
+                    "consultorio": input("Consultorio: ")
+                }
+                print("ID generado:", registrar_doctor(data))
+
             case 2:
-                print("2. Buscar doctor por nombre")
+                print("\n--- Buscar doctor por nombre ---")
+                nombre = input("Nombre o ID del doctor: ")
+                print(buscar_doctor(nombre))
+
             case 3:
-                print("3. Buscar doctor por especialidad")
+                print("\n--- Buscar doctor por especialidad ---")
+                esp = input("Especialidad: ")
+                print(filtrar_por_especialidad(esp))
+
             case 4:
-                print("4. Registrar nuevo paciente")
+                print("\n--- Registrar nuevo paciente ---")
+                data = {
+                    "nombre": input("Nombre: "),
+                    "fecha_nac": input("Fecha nacimiento (YYYY-MM-DD): "),
+                    "sexo": input("Sexo: "),
+                    "telefono": input("Teléfono: "),
+                    "correo": input("Correo: "),
+                    "cont_eme": input("Contacto emergencia: "),
+                    "direccion": input("Dirección: "),
+                    "seguro": input("Seguro: "),
+                    "poliza": input("Póliza: ")
+                }
+                print("ID generado:", registrar_paciente(data))
+
             case 5:
-                print("5. Crear expediente para paciente")
+                print("\n--- Crear expediente médico ---")
+                pid = input("ID del paciente: ")
+                print(crear_expediente(pid))
+
             case 6:
-                print("6. Buscar paciente por nombre")
+                print("\n--- Consultar paciente + expediente ---")
+                nombre = input("Nombre o ID del paciente: ")
+                paciente, expediente = consultar_paciente(nombre)
+                print("Paciente:", paciente)
+                print("Expediente:", expediente)
+
             case 7:
-                print("7. Buscar pacientes por sexo, rango de edad, medicamentos")
+                print("\n--- Filtrar pacientes ---")
+                sexo = input("Sexo (ENTER para ignorar): ")
+                filtros = {}
+                if sexo:
+                    filtros["sexo"] = sexo
+                print(filtrar_pacientes(filtros))
+
             case 8:
-                print("8. Mostrar padecimientos, alergias y tratamientos de un paciente")
+                print("\n--- Información médica del paciente ---")
+                nombre = input("Nombre o ID: ")
+                print(obtener_info_medica(nombre))
+
             case 9:
-                print("9. Añadir padecimiento a expediente de un paciente")
+                print("\n--- Añadir padecimiento ---")
+                pid = input("ID paciente: ")
+                pade = input("Padecimiento: ")
+                print(agregar_padecimiento(pid, pade))
+
             case 10:
-                print("10. Mostrar ocurrencias y tratamientos de padecimientos")
+                print("\n--- Pipeline: edad promedio + frecuencia medicamentos ---")
+                diag = input("Padecimiento: ")
+                print(edad_promedio_y_meds(diag))
+
             case 11:
-                print("11. Calcular grupos de edades de pacientes que padecen cierto padecimiento")
+                print("\n--- Pipeline: buckets de edad ---")
+                diag = input("Padecimiento: ")
+                print(buckets_por_edad(diag))
+
+
+            # demas modulos
             case 12:
-                print("12. Registrar inicio/fin de visita médica")
-            case 13:
-                print("13. Consultar historial de visitas de un paciente")
-            case 14:
-                print("14. Consultar visitas programadas para un día")
-            case 15:
-                print("15. Registrar medición de signos vitales")
-            case 16:
-                print("16. Mostrar historial de signo vital particular para un paciente")
-            case 17:
-                print("17. Guardar receta médica de una visita")
-            case 18:
-                print("18. Consultar todas las recetas de un doctor en rango de fecha")
-            case 19:
-                print("19. Observar historial de accesos y registros a expedientes")
-            case 20:
-                print("20. Consultar todos los diágnosticos de un doctor en rango de fecha")
-            case 21:
-                print("21. Obtener diágnostico y tratamiento de paciente en fecha específica")
-            case 22:
-                print("22. Consultar disponibilidad de doctor en fecha")
-            case 23:
-                print("23. Mostrar pacientes de un doctor que han sido vistos por otro especialista")
-            case 24:
-                print("24. Identificar medicamentos recetados en conjunto para tratar padecimientos")
-            case 25:
-                print("25. Sugerir especialista para una segunda opinión")
-            case 26:
-                print("26. Detectar posibles conflictos en tratamiento de paciente")
-            case 27:
-                print("27. Analizar red de un doctor")
-            case 28:
-                print("28. Consultar historial de tratamiento de un paciente")
-            case 29:
-                print("29. Identificar pacientes que reciben alta cantidad de medicamentos")
-            case 30:
-                print("30. Identificar posibles sobredosis")
-            case 31:
-                print("31. Mostrar referencias entre doctores según pacientes en común")
-            case 32:
-                print("32. Mostrar frecuencias de tratamientos de ciertos padecimientos por ciertas especialidades")
-            case 33:
-                print("33. Generar reporte de padecimientos más comúnes por especialidad")
+                print("Función Cassandra — registrar visita")
+
             case 0:
                 break
+
             case _:
                 print("Error, escoga opción válida")
 
+
 if __name__ == "__main__":
     main()
-

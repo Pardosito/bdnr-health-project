@@ -1,5 +1,6 @@
 from connect import get_mongo, get_cassandra, get_dgraph
 
+#PURO MONDONGO
 # servicios de mondongo
 from Mongo.doctores_service import (
     registrar_doctor,
@@ -35,7 +36,7 @@ def main():
     print("\n=== Plataforma de Integración de Datos de Salud ===")
 
     while True:
-        print("\n--- MongoDB ---")
+        print("\n--- MONDONGO ---")
         print("1. Registrar nuevo doctor")
         print("2. Buscar doctor por nombre")
         print("3. Buscar doctor por especialidad")

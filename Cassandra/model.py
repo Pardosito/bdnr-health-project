@@ -7,7 +7,7 @@ from cassandra.util import uuid_from_time
 
 log = logging.getLogger()
 
-# CREACIÓN DE TABLAS
+# creación de tablas
 
 CREATE_KEYSPACE = """
     CREATE KEYSPACE IF NOT EXISTS {}

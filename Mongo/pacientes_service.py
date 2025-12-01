@@ -10,9 +10,8 @@ def consultar_paciente(db, valor):
     try:
         obj = ObjectId(valor)
         doc = db.pacientes.find_one({"_id": obj})
-        if doc:
-            return doc
-    except:
-        pass
-
-    return db.pacientes.find_one({"nombre": valor})
+        id_doc = doc["_id"]
+        exp = db.expedientes.find_one({"paciente_id": id_doc})
+        return doc, exp
+    except Exception as e:
+        print(f"Error consultando paciente: {e}")

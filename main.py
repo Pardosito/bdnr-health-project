@@ -98,12 +98,12 @@ def main():
             case 2:
                 print("\n--- Buscar doctor por nombre ---")
                 nombre = input("Nombre o ID del doctor: ")
-                print(buscar_doctor_por_nombre(nombre))
+                print(buscar_doctor_por_nombre(mongo, nombre))
 
             case 3:
                 print("\n--- Buscar doctor por especialidad ---")
                 esp = input("Especialidad: ")
-                print(buscar_por_especialidad(esp))
+                print(buscar_por_especialidad(mongo, esp))
 
             case 4:
                 print("\n--- Registrar nuevo paciente ---")
@@ -128,7 +128,7 @@ def main():
             case 6:
                 print("\n--- Consultar paciente + expediente ---")
                 nombre = input("Nombre o ID del paciente: ")
-                paciente, expediente = consultar_paciente(nombre)
+                paciente, expediente = consultar_paciente(mongo, nombre)
                 print("Paciente:", paciente)
                 print("Expediente:", expediente)
 

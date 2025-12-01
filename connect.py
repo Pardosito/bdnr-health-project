@@ -7,6 +7,7 @@ from cassandra.cluster import NoHostAvailable
 
 import pydgraph
 
+from Cassandra.model import CREATE_KEYSPACE, create_keyspace, create_schema
 
 #mondongo
 def get_mongo():
@@ -38,6 +39,9 @@ def get_cassandra():
     try:
         cluster = Cluster(["127.0.0.1"])
         session = cluster.connect()  # importante especificar keyspace "plataforma_salud", lo declararemos ya que empecemos la creacion de tablas
+        create_keyspace(session, "health_service", 1)
+        session.set_keyspace(CREATE_KEYSPACE)
+        create_schema(session)
         print("[Cassandra] Conectado correctamente.")
         return session
 

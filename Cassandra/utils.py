@@ -1,6 +1,5 @@
 from datetime import datetime
 import uuid
-from cassandra.query import SimpleStatement
 from enum import Enum
 
 def get_visita_id(session, fecha_busqueda, doctor_id, paciente_id):

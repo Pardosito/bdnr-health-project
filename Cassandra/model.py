@@ -2,8 +2,6 @@ import datetime
 import logging
 import random
 import uuid
-from cassandra.query import BatchStatement, UNSET_VALUE
-from cassandra.util import uuid_from_time
 from cassandra import session
 
 # creación de tablas

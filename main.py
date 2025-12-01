@@ -2,7 +2,7 @@ from connect import get_mongo, get_cassandra, get_dgraph
 
 #PURO MONDONGO
 # servicios de mondongo
-from Mongo.doctores_service import (
+from Mongo.doctor_service import (
     registrar_doctor,
     buscar_doctor,
     filtrar_por_especialidad
@@ -15,7 +15,7 @@ from Mongo.pacientes_service import (
     obtener_info_medica
 )
 
-from Mongo.expedientes_service import (
+from Mongo.expediente_service import (
     crear_expediente,
     agregar_padecimiento
 )

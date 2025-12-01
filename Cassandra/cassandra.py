@@ -4,16 +4,9 @@ from cassandra.cluster import Cluster
 from Mongo.utils import get_doctor_id, get_paciente_id, get_doctor_by_id, get_paciente_by_id
 from utils import get_visita_id, get_visita_activa, visitasEnum, medicionesEnum
 import uuid
+from connect import get_cassandra
 
-CLUSTER_IPS = os.getenv('CASSANDRA_CLUSTER_IPS', '127.0.0.1')
-KEYSPACE = os.getenv('CASSANDRA_KEYSPACE', 'health_service')
-REPLICATION_FACTOR = os.getenv('CASSANDRA_REPLICATION_FACTOR', '1')
-cluster = Cluster(CLUSTER_IPS.split(","))
-session = cluster.connect()
-
-model.create_keyspace(session, KEYSPACE, REPLICATION_FACTOR)
-session.set_keyspace(KEYSPACE)
-model.create_schema(session)
+session = get_cassandra()
 
 def registro_inicio_visita(paciente, doctor):
   paciente_id = get_paciente_id(paciente)

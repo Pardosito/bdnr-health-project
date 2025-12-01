@@ -38,19 +38,17 @@ from Cassandra.cassandra import (
 )
 
 #dgraph servicios
-# from Dgraph.dgraph import (
-#     pacientes_vistos_por_otro_especialista,
-#     meds_recetados_juntos,
-#     sugerir_segunda_opinion,
-#     detectar_conflictos_tratamiento,
-#     analizar_red_doctor,
-#     ruta_tratamiento_paciente,
-#     pacientes_polifarmacia,
-#     detectar_sobredosis,
-#     referencias_doctores,
-#     frecuencia_tratamientos_por_especialidad,
-#     padecimientos_por_especialidad
-# )
+from Dgraph.queries import (
+    meds_recetados_juntos,
+    sugerir_segunda_opinion,
+    detectar_conflictos_tratamiento,
+    pacientes_polifarmacia,
+    analizar_propagacion_contagiosa,
+    detectar_sobredosis,
+    analizar_red_doctor,
+    padecimientos_por_especialidad,
+
+)
 
 
 
@@ -266,44 +264,88 @@ def main():
 
 
             # #dgraph
-            # case 23:
-            #     did = input("Doctor ID: ")
-            #     print(pacientes_vistos_por_otro_especialista(dgraph, did))
+            case 23:
+                # Analizar propagación / pacientes en riesgo (sin parámetros)
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    print(analizar_propagacion_contagiosa(dgraph))
 
-            # case 24:
-            #     cond = input("Condición médica: ")
-            #     print(meds_recetados_juntos(dgraph, cond))
+            case 24:
+                cond = input("Condición médica: ")
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    print(meds_recetados_juntos(dgraph, cond))
 
-            # case 25:
-            #     diag = input("Diagnóstico: ")
-            #     print(sugerir_segunda_opinion(dgraph, diag))
+            case 25:
+                pid = input("Paciente ID: ")
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    print(sugerir_segunda_opinion(dgraph, pid))
 
-            # case 26:
-            #     pid = input("Paciente ID: ")
-            #     print(detectar_conflictos_tratamiento(dgraph, pid))
+            case 26:
+                pid = input("Paciente ID: ")
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    print(detectar_conflictos_tratamiento(dgraph, pid))
 
-            # case 27:
-            #     did = input("Doctor ID: ")
-            #     print(analizar_red_doctor(dgraph, did))
+            case 27:
+                did = input("Doctor ID: ")
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    print(analizar_red_doctor(dgraph, did))
 
-            # case 28:
-            #     pid = input("Paciente ID: ")
-            #     print(ruta_tratamiento_paciente(dgraph, pid))
+            case 28:
+                pid = input("Paciente ID: ")
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    # 'ruta_tratamiento_paciente' no está implementada en queries.py;
+                    # mostramos los tratamientos/medicamentos actuales como aproximación
+                    print("Funcionalidad 'ruta de tratamiento' no implementada; mostrando tratamientos actuales:")
+                    print(detectar_conflictos_tratamiento(dgraph, pid))
 
-            # case 29:
-            #     print(pacientes_polifarmacia(dgraph))
+            case 29:
+                umbral = input("Umbral (número mínimo de tratamientos, ENTER=3): ")
+                try:
+                    umbral_val = int(umbral) if umbral else 3
+                except ValueError:
+                    umbral_val = 3
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    print(pacientes_polifarmacia(dgraph, umbral_val))
 
-            # case 30:
-            #     print(detectar_sobredosis(dgraph))
+            case 30:
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    print(detectar_sobredosis(dgraph))
 
-            # case 31:
-            #     print(referencias_doctores(dgraph))
+            case 31:
+                did = input("Doctor ID: ")
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    # Usamos el análisis de red para mostrar referencias/colaboraciones
+                    print(analizar_red_doctor(dgraph, did))
 
-            # case 32:
-            #     print(frecuencia_tratamientos_por_especialidad(dgraph))
+            case 32:
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    # 'frecuencia_tratamientos_por_especialidad' se cubre con padecimientos_por_especialidad
+                    print(padecimientos_por_especialidad(dgraph))
 
-            # case 33:
-            #     print(padecimientos_por_especialidad(dgraph))
+            case 33:
+                if dgraph is None:
+                    print("[ERROR] Dgraph no está conectado.")
+                else:
+                    print(padecimientos_por_especialidad(dgraph))
 
             #salir
             case 0:

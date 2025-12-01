@@ -2,62 +2,70 @@ import random
 import uuid
 from datetime import datetime, timedelta, date
 from faker import Faker
-from bson import ObjectId
 import pydgraph
 
-# Importamos tus conexiones y servicios
-# Asegúrate de que los imports coincidan con tu estructura de carpetas
+# Imports de tus módulos
 from connect import get_mongo, get_cassandra, get_dgraph
 from Mongo.doctor_service import registrar_doctor
 from Mongo.pacientes_service import registrar_paciente
-from Mongo.expediente_service import crear_expediente, agregar_padecimiento
-from Mongo.utils import get_doctor_by_id, get_paciente_by_id
+from Mongo.expediente_service import crear_expediente
 from Cassandra import model
-from Dgraph import dgraph as dg_utils # Asumiendo que las funciones de creación están aquí
+from Dgraph import dgraph as dg_utils
+from Mongo.utils import get_doctor_by_id, get_paciente_by_id
 
 fake = Faker('es_MX')
 
-# --- CONFIGURACIÓN DE DATOS MAESTROS (Para consistencia) ---
-ESPECIALIDADES = ["Cardiología", "Pediatría", "Medicina General", "Neurología", "Dermatología"]
-PADECIMIENTOS = ["Diabetes Tipo 2", "Hipertensión", "Asma", "Migraña Crónica", "Artritis"]
+# --- DATOS MAESTROS AMPLIADOS ---
+ESPECIALIDADES = ["Cardiología", "Pediatría", "Medicina General", "Neurología", "Dermatología", "Urgencias"]
+PADECIMIENTOS = ["Diabetes Tipo 2", "Hipertensión", "Asma", "Migraña", "Artritis", "Gripe", "Infección Estomacal"]
+
+# Definimos medicamentos con sus interacciones conocidas para probar
 MEDICAMENTOS = [
     {"nombre": "Paracetamol", "dosis": "500mg"},
     {"nombre": "Ibuprofeno", "dosis": "400mg"},
-    {"nombre": "Metformina", "dosis": "850mg"},  # Para Diabetes
-    {"nombre": "Losartán", "dosis": "50mg"},     # Para Hipertensión
-    {"nombre": "Salbutamol", "dosis": "100mcg"}  # Para Asma
+    {"nombre": "Metformina", "dosis": "850mg"},
+    {"nombre": "Losartán", "dosis": "50mg"},
+    {"nombre": "Salbutamol", "dosis": "100mcg"},
+    {"nombre": "Amoxicilina", "dosis": "500mg"}
 ]
 
-def poblar_todo():
-    print("🚀 Iniciando población de datos...")
+# Función auxiliar local para Dgraph (por si falta en tu utils)
+def relacionar_doctor_tratamiento(client, doctor_uid, tratamiento_uid):
+    txn = client.txn()
+    try:
+        data = {"uid": doctor_uid, "prescribe": [{"uid": tratamiento_uid}]}
+        txn.mutate(set_obj=data)
+        txn.commit()
+    finally:
+        txn.discard()
 
-    # 1. Conexiones
+def poblar_todo():
+    print("🚀 Iniciando población de datos AVANZADA...")
+
     db_mongo = get_mongo()
     session_cass = get_cassandra()
     client_dgraph = get_dgraph()
 
     if db_mongo == None and session_cass == None and client_dgraph == None:
-        print("❌ Error: No se pudo conectar a todas las bases de datos.")
+        print("❌ Error: Faltan conexiones.")
         return
 
-    # Limpiar Dgraph (Opcional, para no duplicar en pruebas) — solo si hay cliente
-    if client_dgraph is not None and dg_utils is not None:
-        op = pydgraph.Operation(drop_all=True)
-        client_dgraph.alter(op)
-        dg_utils.set_schema() # Recargar schema después de borrar
+    # Limpieza Dgraph
+    op = pydgraph.Operation(drop_all=True)
+    client_dgraph.alter(op)
+    dg_utils.set_schema()
 
     # ==========================================
-    # FASE 1: MONDONGO (Doctores y Pacientes)
+    # FASE 1: MONDONGO (Usuarios Base)
     # ==========================================
-    print("\n--- Fase 1: MongoDB (Usuarios Base) ---")
+    print("\n--- Fase 1: MongoDB ---")
 
     lista_doctores = []
     lista_pacientes = []
 
-    # 1.1 Crear Doctores
+    # 1.1 Doctores
     for esp in ESPECIALIDADES:
-        # Creamos 2 doctores por especialidad
-        for _ in range(2):
+        for _ in range(2): # 2 docs por especialidad
             doc_data = {
                 "nombre": "Dr. " + fake.first_name() + " " + fake.last_name(),
                 "especialidad": esp,
@@ -67,214 +75,220 @@ def poblar_todo():
                 "correo": fake.email(),
                 "consultorio": str(random.randint(100, 500))
             }
-            reg = registrar_doctor(db_mongo, doc_data)
-            # reg es el ObjectId insertado; úsalo correctamente (no asignar el resultado de print)
-            doc_id = reg
-            print(f"Doctor creado: id:{doc_id}, nombre:{get_doctor_by_id(doc_id)}")
-            # Mostrar mapping claro para pruebas de Cassandra
-            print(f"  -> MAPPING DOCTOR: nombre='{doc_data['nombre']}', mongo_id='{str(doc_id)}', especialidad='{esp}'")
-            lista_doctores.append({**doc_data, "_id": str(doc_id)})
+            doc_id = registrar_doctor(db_mongo, doc_data)
+            print(f"id: {doc_id} nombre: {get_doctor_by_id(doc_id)}")
 
-            # Sincronizar con Dgraph inmediatamente (si está disponible)
-            if client_dgraph is not None and dg_utils is not None:
-                dg_doc_uid = dg_utils.crear_doctor(client_dgraph, doc_data["nombre"], str(doc_id), esp)
-                lista_doctores[-1]["dgraph_uid"] = dg_doc_uid
-            else:
-                lista_doctores[-1]["dgraph_uid"] = None
+            # Dgraph
+            dg_uid = dg_utils.crear_doctor(client_dgraph, doc_data["nombre"], str(doc_id), esp)
+            lista_doctores.append({**doc_data, "_id": str(doc_id), "dgraph_uid": dg_uid})
 
-    # 1.2 Crear Pacientes y Expedientes
-    # Generamos 20 pacientes con edades variadas para probar los buckets
-    for i in range(20):
-        fecha_nac = fake.date_of_birth(minimum_age=5, maximum_age=80)
+    # 1.2 Pacientes (Generamos 30 para tener volumen)
+    for i in range(30):
         pac_data = {
             "nombre": fake.first_name() + " " + fake.last_name(),
-            "fecha_nac": fecha_nac.isoformat(), # String YYYY-MM-DD
+            "fecha_nac": fake.date_of_birth(minimum_age=5, maximum_age=90).isoformat(),
             "sexo": random.choice(["M", "F"]),
             "telefono": fake.phone_number(),
             "correo": fake.email(),
             "cont_eme": fake.name(),
             "direccion": fake.address(),
-            "seguro": "GNP" if random.random() > 0.5 else "AXA",
+            "seguro": "GNP",
             "poliza": str(fake.random_number(digits=10))
         }
         pac_id = registrar_paciente(db_mongo, pac_data)
-        str_pac_id = str(pac_id)
-        print(f"Paciente creado: id:{str_pac_id}, nombre: {get_paciente_by_id(pac_id)}")
-        # Mostrar mapping claro para pruebas de Cassandra
-        print(f"  -> MAPPING PACIENTE: nombre='{pac_data['nombre']}', mongo_id='{str_pac_id}', fecha_nac='{pac_data['fecha_nac']}'")
+        print(f"id: {pac_id} nombre: {get_paciente_by_id(pac_id)}")
 
-        # Calcular edad para Dgraph
-        edad = (date.today() - fecha_nac).days // 365
+        # Dgraph
+        edad = random.randint(5, 90)
+        dg_uid = dg_utils.crear_paciente(client_dgraph, pac_data["nombre"], str(pac_id), edad, pac_data["direccion"])
 
-        # Sincronizar con Dgraph
-        dg_pac_uid = dg_utils.crear_paciente(client_dgraph, pac_data["nombre"], str_pac_id, edad, pac_data["direccion"])
+        # Crear expediente vacío en Mongo
+        crear_expediente(db_mongo, {"paciente_id": pac_id, "alergias": [], "padecimientos": [], "tratamientos": []})
 
-        lista_pacientes.append({**pac_data, "_id": str_pac_id, "dgraph_uid": dg_pac_uid})
+        lista_pacientes.append({**pac_data, "_id": str(pac_id), "dgraph_uid": dg_uid})
 
-        # 1.3 Crear Expediente en Mongo
-        # Asignar padecimientos específicos para probar aggregations
-        padecimientos_paciente = []
-        if i < 5: padecimientos_paciente.append("Diabetes Tipo 2") # 5 diabéticos
-        if 5 <= i < 12: padecimientos_paciente.append("Hipertensión") # 7 hipertensos (varias edades)
-
-        tratamientos_paciente = []
-        if "Diabetes Tipo 2" in padecimientos_paciente:
-            tratamientos_paciente.append("Metformina")
-
-        exp_data = {
-            "paciente_id": pac_id, # ObjectId
-            "alergias": [fake.word() for _ in range(random.randint(0, 2))],
-            "padecimientos": padecimientos_paciente,
-            "tratamientos": tratamientos_paciente
-        }
-        print(f"id expediente: {crear_expediente(db_mongo, exp_data)}")
-
-    print(f"✅ Generados {len(lista_doctores)} doctores y {len(lista_pacientes)} pacientes.")
+    print(f"✅ Creados {len(lista_doctores)} doctores y {len(lista_pacientes)} pacientes.")
 
 
-# ==========================================
-    # FASE 2: CASSANDRA (Historial Médico)
     # ==========================================
-    print("\n--- Fase 2: Cassandra (Visitas y Recetas) ---")
+    # FASE 2: CASSANDRA (Historial Completo)
+    # ==========================================
+    print("\n--- Fase 2: Cassandra (Visitas, Recetas, Signos) ---")
 
-    # 1. PREPARAR STATEMENTS (Una sola vez antes del loop)
-    # Usamos las variables de texto que definimos en model.py
+    # Preparar statements
+    stmt_historia = session_cass.prepare(model.inicio_visita_stmt)
+    stmt_agenda   = session_cass.prepare(model.INSERT_VISITA_DEL_DIA)
+    stmt_receta   = session_cass.prepare(model.recete_medica_registro_stmt)
+    stmt_diag     = session_cass.prepare(model.INSERT_DIAGNOSTICO)
+    stmt_signos   = session_cass.prepare(model.signo_vital_registro_stmt) # ¡NUEVO!
+
+    for paciente in lista_pacientes:
+        # Cada paciente tiene entre 1 y 5 visitas
+        for _ in range(random.randint(1, 5)):
+            doctor = random.choice(lista_doctores)
+            fecha_visita = fake.date_between(start_date='-6m', end_date='today')
+            visita_uuid = uuid.uuid1()
+
+            # 1. Registrar Visita
+            print(session_cass.execute(stmt_historia, [paciente["_id"], doctor["_id"], visita_uuid, uuid.uuid1()]))
+            print(session_cass.execute(stmt_agenda, [fecha_visita, "Consulta General", paciente["_id"], doctor["_id"], visita_uuid, uuid.uuid1()]))
+
+            # 2. Registrar Signos Vitales (¡DATOS NUEVOS!)
+            # Generamos datos realistas
+            signos = [
+                ("TEMPERATURA", f"{random.uniform(36.0, 39.5):.1f}"),
+                ("PRESION", f"{random.randint(110, 140)}/{random.randint(70, 90)}"),
+                ("RITMO_CARDIACO", str(random.randint(60, 100))),
+                ("OXIGENO", str(random.randint(90, 99)))
+            ]
+            for tipo, valor in signos:
+                print(f"{tipo}, {valor}")
+                session_cass.execute(stmt_signos, [paciente["_id"], doctor["_id"], str(visita_uuid), tipo, valor, uuid.uuid1()])
+
+            # 3. Recetas y Diagnósticos (Aleatorios base)
+            if random.random() > 0.4:
+                med = random.choice(MEDICAMENTOS)
+                print(session_cass.execute(stmt_receta, [paciente["_id"], doctor["_id"], str(visita_uuid), f"{med['nombre']} {med['dosis']}"]))
+                print(session_cass.execute(stmt_diag, [paciente["_id"], doctor["_id"], str(visita_uuid), random.choice(PADECIMIENTOS), fecha_visita]))
+
+    print("✅ Cassandra poblado con visitas y signos vitales.")
+
+
+    # ==========================================
+    # FASE 3: DGRAPH (Escenarios de Prueba)
+    # ==========================================
+    print("\n--- Fase 3: Dgraph (Escenarios Específicos) ---")
+
+    # 3.1 Nodos Base
+    mapa_cond = {}
+    for c in PADECIMIENTOS:
+        es_contagioso = (c == "Gripe")
+        mapa_cond[c] = dg_utils.crear_condicion(client_dgraph, c, es_contagioso)
+
+    mapa_meds = {}
+    for m in MEDICAMENTOS:
+        mapa_meds[m["nombre"]] = dg_utils.crear_medicamento(client_dgraph, m["nombre"], m["dosis"])
+
+    # CREAR INTERACCIÓN REAL: Losartán <-> Ibuprofeno
+    # (Para probar 'Detectar conflictos de tratamiento')
+    u_losartan = mapa_meds["Losartán"]
+    u_ibuprofeno = mapa_meds["Ibuprofeno"]
+
+    txn = client_dgraph.txn()
     try:
-        stmt_historia = session_cass.prepare(model.inicio_visita_stmt)
-        stmt_agenda   = session_cass.prepare(model.INSERT_VISITA_DEL_DIA)
-        stmt_receta   = session_cass.prepare(model.recete_medica_registro_stmt)
-        stmt_diag     = session_cass.prepare(model.INSERT_DIAGNOSTICO)
-    except Exception as e:
-        print(f"❌ Error preparando queries de Cassandra: {e}")
-        return # Salir si falla esto, para no llenar de errores la consola
+        # Relación bidireccional manual
+        txn.mutate(set_obj={"uid": u_losartan, "interactua_con": [{"uid": u_ibuprofeno}]})
+        txn.mutate(set_obj={"uid": u_ibuprofeno, "interactua_con": [{"uid": u_losartan}]})
+        txn.commit()
+    finally:
+        txn.discard()
+    print("   🔹 Interacción creada: Losartán <-> Ibuprofeno")
 
-    # 2. GENERAR DATOS
-    for paciente in lista_pacientes:
-        # Generar entre 1 y 3 visitas pasadas por paciente
-        num_visitas = random.randint(1, 3)
+    # ----------------------------
+    # Preparar datos para Query 24: medicamentos recetados juntos
+    # Creamos 2 tratamientos asociados a una condición (p.ej. 'Migraña')
+    # y hacemos que cada tratamiento incluya varios medicamentos.
+    # Esto garantiza que la consulta: Condicion <- para - Tratamiento - incluye -> Medicamento
+    # encuentre resultados.
+    cond_target = None
+    if "Migraña" in mapa_cond:
+        cond_target = "Migraña"
+    else:
+        # fallback: primera condición disponible
+        cond_target = list(mapa_cond.keys())[0]
 
-        # Elegimos un doctor random de la lista que generamos en Fase 1
-        doctor_asignado = random.choice(lista_doctores)
+    cond_uid = mapa_cond[cond_target]
+    print(f"   🔸 Creando tratamientos de prueba para la condición '{cond_target}' (uid={cond_uid})")
 
-        for _ in range(num_visitas):
-            fecha_visita = fake.date_between(start_date='-1y', end_date='today')
-            print(fecha_visita)
-            hora_inicio_uuid = uuid.uuid1() # TimeUUID para Cassandra
-            hora_fin_uuid = uuid.uuid1()    # Simulamos que ya terminó
+    # Tratamiento A: Paracetamol + Ibuprofeno
+    t_a = dg_utils.crear_tratamiento(client_dgraph, "Tratamiento A - Dolor", "7 días")
+    dg_utils.relacionar_tratamiento_medicamento(client_dgraph, t_a, mapa_meds.get("Paracetamol"))
+    dg_utils.relacionar_tratamiento_medicamento(client_dgraph, t_a, mapa_meds.get("Ibuprofeno"))
 
-            # A) Insertar en Historial (visitas_por_paciente)
-            # Schema: paciente_id, doctor_id, timestamp_inicio, timestamp_fin
-            session_cass.execute(stmt_historia, [
-                paciente["_id"],
-                doctor_asignado["_id"],
-                hora_inicio_uuid,
-                hora_fin_uuid
-            ])
-            print(f"  [CASSANDRA] Historial insertado: fecha={fecha_visita} paciente_id={paciente['_id']} doctor_id={doctor_asignado['_id']} visita_id={hora_inicio_uuid}")
+    # Tratamiento B: Paracetamol + Amoxicilina
+    t_b = dg_utils.crear_tratamiento(client_dgraph, "Tratamiento B - Infeccioso", "5 días")
+    dg_utils.relacionar_tratamiento_medicamento(client_dgraph, t_b, mapa_meds.get("Paracetamol"))
+    dg_utils.relacionar_tratamiento_medicamento(client_dgraph, t_b, mapa_meds.get("Amoxicilina"))
 
-            # B) Insertar en Agenda (visitas_del_dia)
-            # Schema: fecha, tipo_visita, paciente_id, doctor_id, hora_inicio, hora_fin
-            tipo = random.choice(["Consulta General", "Urgencia", "Seguimiento"])
-            session_cass.execute(stmt_agenda, [
-                fecha_visita,
-                tipo,
-                paciente["_id"],
-                doctor_asignado["_id"],
-                hora_inicio_uuid,
-                hora_fin_uuid
-            ])
-            print(f"  [CASSANDRA] Agenda insertada: fecha={fecha_visita} tipo={tipo} paciente_id={paciente['_id']} doctor_id={doctor_asignado['_id']} hora_inicio={hora_inicio_uuid}")
-
-            # C) Generar Receta (50% probabilidad)
-            if random.random() > 0.5:
-                receta_texto = f"{random.choice(MEDICAMENTOS)['nombre']} cada 8 horas."
-
-                # Schema: paciente_id, doctor_id, visita_id, receta
-                # OJO: visita_id es TEXT en esta tabla, así que usamos str(hora_inicio_uuid)
-                session_cass.execute(stmt_receta, [
-                    paciente["_id"],
-                    doctor_asignado["_id"],
-                    str(hora_inicio_uuid),
-                    receta_texto
-                ])
-                print(f"  [CASSANDRA] Receta insertada: paciente_id={paciente['_id']} doctor_id={doctor_asignado['_id']} visita_id={str(hora_inicio_uuid)} receta='{receta_texto}'")
-
-                # D) Generar Diagnóstico asociado
-                diag_texto = random.choice(PADECIMIENTOS)
-
-                # Schema: paciente_id, doctor_id, visita_id, diagnostico, fecha
-                session_cass.execute(stmt_diag, [
-                    paciente["_id"],
-                    doctor_asignado["_id"],
-                    str(hora_inicio_uuid),
-                    diag_texto,
-                    fecha_visita
-                ])
-                print(f"  [CASSANDRA] Diagnóstico insertado: paciente_id={paciente['_id']} doctor_id={doctor_asignado['_id']} visita_id={str(hora_inicio_uuid)} diag='{diag_texto}' fecha={fecha_visita}")
-
-    print("✅ Historial de visitas generado en Cassandra.")
+    # Relacionar ambos tratamientos con la condición (Tratamiento --para--> Condicion)
+    txn = client_dgraph.txn()
+    try:
+        txn.mutate(set_obj={"uid": t_a, "para": [{"uid": cond_uid}]})
+        txn.mutate(set_obj={"uid": t_b, "para": [{"uid": cond_uid}]})
+        txn.commit()
+        print(f"   🔸 Tratamientos ligados a '{cond_target}': t_a={t_a}, t_b={t_b}")
+    finally:
+        txn.discard()
 
 
-    # ==========================================
-    # FASE 3: DGRAPH (Conocimiento y Relaciones)
-    # ==========================================
-    print("\n--- Fase 3: Dgraph (Grafo de Conocimiento) ---")
+    # --- ESCENARIO 1: SOBREDOSIS (Mismo med, diferentes doctores) ---
+    # Paciente[0] recibe Paracetamol de Doctor[0] y Doctor[1]
+    p_sobredosis = lista_pacientes[0]
+    doc_A = lista_doctores[0]
+    doc_B = lista_doctores[1]
+    u_paracetamol = mapa_meds["Paracetamol"]
 
-    # 3.1 Crear Nodos Base (Medicamentos y Condiciones)
-    mapa_condiciones = {} # nombre -> uid
-    for cond_nombre in PADECIMIENTOS:
-        es_contagioso = True if cond_nombre == "Gripe" else False # Ejemplo simple
-        uid = dg_utils.crear_condicion(client_dgraph, cond_nombre, es_contagioso)
-        mapa_condiciones[cond_nombre] = uid
+    # Tratamiento A (Doc A)
+    t1 = dg_utils.crear_tratamiento(client_dgraph, "Dolor A", "5 días")
+    dg_utils.relacionar_tratamiento_medicamento(client_dgraph, t1, u_paracetamol)
+    dg_utils.relacionar_paciente_tratamiento(client_dgraph, p_sobredosis["dgraph_uid"], t1)
+    relacionar_doctor_tratamiento(client_dgraph, doc_A["dgraph_uid"], t1) # Helper local
 
-    mapa_medicamentos = {}
-    for med in MEDICAMENTOS:
-        uid = dg_utils.crear_medicamento(client_dgraph, med["nombre"], med["dosis"])
-        mapa_medicamentos[med["nombre"]] = uid
+    # Tratamiento B (Doc B) - ¡EL MISMO MEDICAMENTO!
+    t2 = dg_utils.crear_tratamiento(client_dgraph, "Dolor B", "5 días")
+    dg_utils.relacionar_tratamiento_medicamento(client_dgraph, t2, u_paracetamol)
+    dg_utils.relacionar_paciente_tratamiento(client_dgraph, p_sobredosis["dgraph_uid"], t2)
+    relacionar_doctor_tratamiento(client_dgraph, doc_B["dgraph_uid"], t2)
 
-    # 3.2 Crear Relación de Interacción (Para probar query de conflictos)
-    # Losartán interactúa con Ibuprofeno (ejemplo ficticio para prueba)
-    uid_losartan = mapa_medicamentos.get("Losartán")
-    uid_ibu = mapa_medicamentos.get("Ibuprofeno")
+    print(f"   🔹 Escenario Sobredosis: {p_sobredosis['nombre']} recibe Paracetamol de {doc_A['nombre']} y {doc_B['nombre']}")
 
-    if uid_losartan and uid_ibu:
-        txn = client_dgraph.txn()
-        try:
-            # Crear relación bidireccional interactua_con
-            data = {"uid": uid_losartan, "interactua_con": [{"uid": uid_ibu}]}
-            txn.mutate(set_obj=data)
-            txn.commit()
-            print("   🔗 Interacción creada: Losartán <-> Ibuprofeno")
-        finally:
-            txn.discard()
 
-    # 3.3 Relacionar Pacientes con Condiciones y Doctores
-    # Usamos los UIDs que guardamos en la fase 1
-    for paciente in lista_pacientes:
-        # Recuperar datos de mongo para saber qué padecimientos tenía
-        # (En un script real, leerías de mongo, aquí usamos la lógica de creación)
-        # Asignamos aleatoriamente relaciones para el grafo
+    # --- ESCENARIO 2: CONFLICTO (Toma A, receta B que interactúa) ---
+    # Paciente[1] toma Losartán, se le agrega Ibuprofeno
+    p_conflicto = lista_pacientes[1]
 
-        # Paciente -> Diagnosticado con -> Condicion
-        cond_random = random.choice(list(mapa_condiciones.keys()))
-        uid_cond = mapa_condiciones[cond_random]
-        dg_utils.relacionar_paciente_condicion(client_dgraph, paciente["dgraph_uid"], uid_cond)
+    # Ya toma Losartán
+    t_base = dg_utils.crear_tratamiento(client_dgraph, "Control Presión", "Permanente")
+    dg_utils.relacionar_tratamiento_medicamento(client_dgraph, t_base, u_losartan)
+    dg_utils.relacionar_paciente_tratamiento(client_dgraph, p_conflicto["dgraph_uid"], t_base)
 
-        # Doctor -> Atiende -> Paciente
-        doc_random = random.choice(lista_doctores)
-        dg_utils.relacionar_doctor_atiende(client_dgraph, doc_random["dgraph_uid"], paciente["dgraph_uid"])
+    # Recibe Ibuprofeno (que choca con Losartán)
+    t_nuevo = dg_utils.crear_tratamiento(client_dgraph, "Dolor Cabeza", "3 días")
+    dg_utils.relacionar_tratamiento_medicamento(client_dgraph, t_nuevo, u_ibuprofeno)
+    dg_utils.relacionar_paciente_tratamiento(client_dgraph, p_conflicto["dgraph_uid"], t_nuevo)
 
-        # Doctor -> Tiene Especialidad (Crear nodo especialidad si no existe)
-        # (Esto requeriría una función helper extra, la simulamos)
+    print(f"   🔹 Escenario Conflicto: {p_conflicto['nombre']} toma Losartán y recibe Ibuprofeno")
 
-        # CASO DE PRUEBA: PACIENTE CON RIESGO
-        # Si el paciente tiene Hipertensión (Losartán) y le recetamos Ibuprofeno -> Conflicto
-        if cond_random == "Hipertensión":
-            # Asignar tratamiento Losartán
-            pass # Lógica de crear nodo tratamiento y ligarlo
 
-    print("✅ Grafo poblado con relaciones complejas.")
-    print("\n✨ ¡Población finalizada! Base de datos lista para pruebas.")
+    # --- ESCENARIO 3: CONTAGIO (Paciente Cero -> Doctor -> Otros Pacientes) ---
+    # Doctor[2] atiende a Paciente[2] (con Gripe). Luego atiende a Paciente[3] y [4].
+    doc_contagio = lista_doctores[2]
+    p_cero = lista_pacientes[2]
+    p_expuesto1 = lista_pacientes[3]
+    p_expuesto2 = lista_pacientes[4]
+    u_gripe = mapa_cond["Gripe"]
+
+    # Paciente Cero tiene Gripe
+    dg_utils.relacionar_paciente_condicion(client_dgraph, p_cero["dgraph_uid"], u_gripe)
+
+    # El doctor trata esa gripe (Prescribe tratamiento PARA gripe)
+    t_gripe = dg_utils.crear_tratamiento(client_dgraph, "Reposo", "7 días")
+    # Relacionar correctamente doctor -> prescribe -> tratamiento
+    relacionar_doctor_tratamiento(client_dgraph, doc_contagio["dgraph_uid"], t_gripe)
+    # Relacionar tratamiento con condición (Faltaba helper, usamos 'para' directo si existe o genérico)
+    # Asumimos que Tratamiento --para--> Condicion
+    txn = client_dgraph.txn()
+    txn.mutate(set_obj={"uid": t_gripe, "para": [{"uid": u_gripe}]})
+    txn.commit()
+
+    # Doctor atiende a los 3 (La relación 'atiende' la usamos para trazar contacto)
+    dg_utils.relacionar_doctor_atiende(client_dgraph, doc_contagio["dgraph_uid"], p_cero["dgraph_uid"])
+    dg_utils.relacionar_doctor_atiende(client_dgraph, doc_contagio["dgraph_uid"], p_expuesto1["dgraph_uid"])
+    dg_utils.relacionar_doctor_atiende(client_dgraph, doc_contagio["dgraph_uid"], p_expuesto2["dgraph_uid"])
+
+    print(f"   🔹 Escenario Contagio: {doc_contagio['nombre']} trató Gripe de {p_cero['nombre']} y atendió a otros 2 pacientes.")
+
+    print("\n✨ ¡Población finalizada exitosamente!")
 
 if __name__ == "__main__":
     poblar_todo()

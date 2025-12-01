@@ -1,13 +1,11 @@
+import os
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError, ConnectionFailure
-
-from cassandra.cluster import Cluster
-from cassandra.auth import PlainTextAuthProvider
-from cassandra.cluster import NoHostAvailable
-
+from cassandra.cluster import Cluster, NoHostAvailable
 import pydgraph
+from Cassandra import model
 
-from Cassandra.model import CREATE_KEYSPACE, create_keyspace, create_schema
+CASSANDRA_KEYSPACE = "health_service"
 
 #mondongo
 def get_mongo():
@@ -32,25 +30,21 @@ def get_mongo():
 
 #cassandra
 def get_cassandra():
-    """
-    Retorna una sesión funcional con Cassandra.
-    Requiere que el keyspace plataforma_salud ya exista.
-    """
     try:
         cluster = Cluster(["127.0.0.1"])
-        session = cluster.connect()  # importante especificar keyspace "plataforma_salud", lo declararemos ya que empecemos la creacion de tablas
-        create_keyspace(session, "health_service", 1)
-        session.set_keyspace(CREATE_KEYSPACE)
-        create_schema(session)
-        print("[Cassandra] Conectado correctamente.")
+        session = cluster.connect()
+        model.create_keyspace(session, CASSANDRA_KEYSPACE, 1)
+        session.set_keyspace(CASSANDRA_KEYSPACE)
+        model.create_schema(session)
+
+        print("[Cassandra] Conectado e inicializado correctamente.")
         return session
 
     except NoHostAvailable as e:
-        print("[Cassandra] ERROR: Cassandra no está corriendo o no responde:", e)
+        print("[Cassandra] ERROR: Cassandra no responde:", e)
         return None
-
     except Exception as e:
-        print("[Cassandra] ERROR de conexión:", e)
+        print(f"[Cassandra] ERROR de conexión: {e}")
         return None
 
 

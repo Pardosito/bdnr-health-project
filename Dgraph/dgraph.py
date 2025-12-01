@@ -1,17 +1,15 @@
 from connect import get_dgraph
+import pydgraph
 
 #schema
 schema = """
-
-#types
-
 type Doctor {
     nombre
     id
     especialidad
     atiende
-    prescribe
     tiene_especialidad
+    prescribe
 }
 
 type Paciente {
@@ -29,7 +27,6 @@ type Tratamiento {
     tipo
     incluye
     para
-    recetado_por
 }
 
 type Medicamento {
@@ -47,30 +44,24 @@ type Especialidad {
     nombre
 }
 
-#indexes
-
 nombre: string @index(exact, term) .
 id: string @index(exact) .
 especialidad: string @index(term) .
 edad: int .
 direccion: string .
+duracion: string .
+tipo: string .
 dosis: string .
 contagioso: bool @index(bool) .
-
-#relaciones con @reverse
 
 atiende: [uid] @reverse .
 tiene_especialidad: [uid] @reverse .
 prescribe: [uid] @reverse .
-
-recetado_por: [uid] @reverse .
 diagnosticado_con: [uid] @reverse .
 recibe: [uid] @reverse .
 es_alergico: [uid] @reverse .
-
 incluye: [uid] @reverse .
 para: [uid] @reverse .
-
 interactua_con: [uid] @reverse .
 """
 
@@ -82,7 +73,7 @@ def set_schema():
     Lo dejo simple, sin adornos.
     """
     client = get_dgraph()
-    op = client.operation(schema=schema)
+    op = pydgraph.Operation(schema=schema)
     client.alter(op)
     print(">>> SCHEMA cargado con éxito <<<")
 

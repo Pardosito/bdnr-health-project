@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timedelta, date
 from faker import Faker
 from bson import ObjectId
+import pydgraph
 
 # Importamos tus conexiones y servicios
 # Asegúrate de que los imports coincidan con tu estructura de carpetas
@@ -48,12 +49,12 @@ def poblar_todo():
     session_cass = get_cassandra()
     client_dgraph = get_dgraph()
 
-    if not (db_mongo and session_cass and client_dgraph):
+    if db_mongo == None and session_cass == None and client_dgraph == None:
         print("❌ Error: No se pudo conectar a todas las bases de datos.")
         return
 
     # Limpiar Dgraph (Opcional, para no duplicar en pruebas)
-    op = client_dgraph.operation(drop_all=True)
+    op = pydgraph.Operation(drop_all=True)
     client_dgraph.alter(op)
     dg_utils.set_schema() # Recargar schema después de borrar
 
@@ -132,49 +133,80 @@ def poblar_todo():
     print(f"✅ Generados {len(lista_doctores)} doctores y {len(lista_pacientes)} pacientes.")
 
 
-    # ==========================================
+# ==========================================
     # FASE 2: CASSANDRA (Historial Médico)
     # ==========================================
     print("\n--- Fase 2: Cassandra (Visitas y Recetas) ---")
 
-    # Preparar statements
-    # Nota: Usamos tus modelos importados
-    # Necesitamos convertir UUIDs de Python para los campos TIMEUUID
+    # 1. PREPARAR STATEMENTS (Una sola vez antes del loop)
+    # Usamos las variables de texto que definimos en model.py
+    try:
+        stmt_historia = session_cass.prepare(model.inicio_visita_stmt)
+        stmt_agenda   = session_cass.prepare(model.INSERT_VISITA_DEL_DIA)
+        stmt_receta   = session_cass.prepare(model.recete_medica_registro_stmt)
+        stmt_diag     = session_cass.prepare(model.INSERT_DIAGNOSTICO)
+    except Exception as e:
+        print(f"❌ Error preparando queries de Cassandra: {e}")
+        return # Salir si falla esto, para no llenar de errores la consola
 
+    # 2. GENERAR DATOS
     for paciente in lista_pacientes:
         # Generar entre 1 y 3 visitas pasadas por paciente
         num_visitas = random.randint(1, 3)
+
+        # Elegimos un doctor random de la lista que generamos en Fase 1
         doctor_asignado = random.choice(lista_doctores)
 
         for _ in range(num_visitas):
             fecha_visita = fake.date_between(start_date='-1y', end_date='today')
-            hora_inicio_uuid = uuid.uuid1() # TimeUUID generado
+            hora_inicio_uuid = uuid.uuid1() # TimeUUID para Cassandra
+            hora_fin_uuid = uuid.uuid1()    # Simulamos que ya terminó
 
-            # Insertar en visitas_por_paciente (Historial)
-            stmt1 = session_cass.prepare(model.inicio_visita_stmt.query_string) # Acceso al query string si es necesario o usar el nombre directo
-            # Ajuste: Tu model.py define los statements pero la session es local de ese archivo.
-            # Lo mejor es re-preparar aquí o usar query directa para poblar.
+            # A) Insertar en Historial (visitas_por_paciente)
+            # Schema: paciente_id, doctor_id, timestamp_inicio, timestamp_fin
+            session_cass.execute(stmt_historia, [
+                paciente["_id"],
+                doctor_asignado["_id"],
+                hora_inicio_uuid,
+                hora_fin_uuid
+            ])
 
-            # Insertar Visita (Historial)
-            q_historia = "INSERT INTO visitas_por_paciente (paciente_id, doctor_id, timestamp_inicio, timestamp_fin) VALUES (%s, %s, %s, %s)"
-            session_cass.execute(q_historia, (paciente["_id"], doctor_asignado["_id"], hora_inicio_uuid, uuid.uuid1()))
-
-            # Insertar en visitas_del_dia (Agenda)
-            # Nota: fecha debe ser tipo Date de python
-            q_agenda = "INSERT INTO visitas_del_dia (fecha, tipo_visita, paciente_id, doctor_id, hora_inicio, hora_fin) VALUES (%s, %s, %s, %s, %s, %s)"
+            # B) Insertar en Agenda (visitas_del_dia)
+            # Schema: fecha, tipo_visita, paciente_id, doctor_id, hora_inicio, hora_fin
             tipo = random.choice(["Consulta General", "Urgencia", "Seguimiento"])
-            session_cass.execute(q_agenda, (fecha_visita, tipo, paciente["_id"], doctor_asignado["_id"], hora_inicio_uuid, uuid.uuid1()))
+            session_cass.execute(stmt_agenda, [
+                fecha_visita,
+                tipo,
+                paciente["_id"],
+                doctor_asignado["_id"],
+                hora_inicio_uuid,
+                hora_fin_uuid
+            ])
 
-            # Generar Receta (50% probabilidad)
+            # C) Generar Receta (50% probabilidad)
             if random.random() > 0.5:
-                q_receta = "INSERT INTO recetas_por_visita (paciente_id, doctor_id, visita_id, receta) VALUES (%s, %s, %s, %s)"
                 receta_texto = f"{random.choice(MEDICAMENTOS)['nombre']} cada 8 horas."
-                session_cass.execute(q_receta, (paciente["_id"], doctor_asignado["_id"], str(hora_inicio_uuid), receta_texto))
 
-                # Generar Diagnostico asociado
-                q_diag = "INSERT INTO diagnosticos_por_visita (paciente_id, doctor_id, visita_id, diagnostico, fecha) VALUES (%s, %s, %s, %s, %s)"
+                # Schema: paciente_id, doctor_id, visita_id, receta
+                # OJO: visita_id es TEXT en esta tabla, así que usamos str(hora_inicio_uuid)
+                session_cass.execute(stmt_receta, [
+                    paciente["_id"],
+                    doctor_asignado["_id"],
+                    str(hora_inicio_uuid),
+                    receta_texto
+                ])
+
+                # D) Generar Diagnóstico asociado
                 diag_texto = random.choice(PADECIMIENTOS)
-                session_cass.execute(q_diag, (paciente["_id"], doctor_asignado["_id"], str(hora_inicio_uuid), diag_texto, fecha_visita))
+
+                # Schema: paciente_id, doctor_id, visita_id, diagnostico, fecha
+                session_cass.execute(stmt_diag, [
+                    paciente["_id"],
+                    doctor_asignado["_id"],
+                    str(hora_inicio_uuid),
+                    diag_texto,
+                    fecha_visita
+                ])
 
     print("✅ Historial de visitas generado en Cassandra.")
 

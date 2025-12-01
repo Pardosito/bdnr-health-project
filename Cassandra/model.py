@@ -1,10 +1,5 @@
 import datetime
-import logging
-import random
 import uuid
-from cassandra import session
-
-# creación de tablas
 
 CREATE_KEYSPACE = """
     CREATE KEYSPACE IF NOT EXISTS {}
@@ -33,8 +28,9 @@ CREATE_VISITAS_DEL_DIA = """
     )
 """
 
-CREATE_INDEX_DOCTOR = "CREATE INDEX IF NOT EXISTS index_visitas_doctor ON visitas_del_dia (doctor_id)"
-CREATE_INDEX_PACIENTE = "CREATE INDEX IF NOT EXISTS index_visitas_paciente ON visitas_del_dia (paciente_id)"
+# Vamos a usar estos dos indices para poder mejorar query que necesita hacer búsqueda de dicha columna
+CREATE_INDEX_DOCTOR = "CREATE INDEX IF NOT EXISTS idx_visitas_doctor ON visitas_del_dia (doctor_id)"
+CREATE_INDEX_PACIENTE = "CREATE INDEX IF NOT EXISTS idx_visitas_paciente ON visitas_del_dia (paciente_id)"
 
 CREATE_RECETAS_POR_VISITA = """
     CREATE TABLE IF NOT EXISTS recetas_por_visita (
@@ -64,77 +60,91 @@ CREATE_DIAGNOSTICOS_POR_VISITA = """
       doctor_id TEXT,
       visita_id TEXT,
       diagnostico TEXT,
-      fecha DATE
+      fecha DATE,
       PRIMARY KEY ((doctor_id), paciente_id, fecha)
     )
 """
 
-# REQUERIMIENTOS
-# INSERTS
-
-# BULK INSERTS
-# connect.py deberá llamar a estas funciones de bulk insert
-def bulk_inserts(self):
-  pass
-
-
 # INSERTS DE REQUERIMIENTOS
 
-# I1 - Registrar inicio visita (Esté deberá incluir paciente y doctor ID)
-inicio_visita_stmt = session.prepare(
-  "INSERT INTO visitas_por_paciente (paciente_id, doctor_id, timestamp_inicio, timestamp_fin) VALUES (?, ?, ?, ?)" # ULTIMO VALOR DEBERÁ SER NULO O INDICAR 0, YA QUE LA SESION SIGUE ACTIVA
-)
-# I2 - Registrar fin visita (Se usará paciente ID y timestamp para encontrar la visita a la que se debe registrar el fin)
-fin_visita_stmt = session.prepare("""
-  UPDATE visitas_por_paciente
-  SET timestamp_fin = now()
-  WHERE paciente_id = ? AND timestamp_inicio = ?
-""")
-# I3 - Registrar signos vitales durante visita (Será un insert por cada signo vital, deberá incluir ID de visita)
-signo_vital_registro_stmt = session.prepare(
-  "INSERT INTO signos_vitales_por_visita (paciente_id, doctor_id, visita_id, tipo_medicion, valor, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
-)
-# I4 - Registrar receta médica generada durante una visita (Deberá insertarse junto con paciente y doctor ID)
-recete_medica_registro_stmt = session.prepare(
-  "INSERT INTO recetas_por_visita (paciente_id, doctor_id, visita_id, receta) VALUES (?, ?, ?, ?)"
-)
+# I1 - Registrar inicio visita
+inicio_visita_stmt = """
+    INSERT INTO visitas_por_paciente (paciente_id, doctor_id, timestamp_inicio, timestamp_fin)
+    VALUES (?, ?, ?, ?)
+"""
+
+# I2 - Registrar fin visita
+fin_visita_stmt = """
+    UPDATE visitas_por_paciente
+    SET timestamp_fin = now()
+    WHERE paciente_id = ? AND timestamp_inicio = ?
+"""
+
+# I3 - Registrar signos vitales
+signo_vital_registro_stmt = """
+    INSERT INTO signos_vitales_por_visita (paciente_id, doctor_id, visita_id, tipo_medicion, valor, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?)
+"""
+
+# I4 - Registrar receta médica
+recete_medica_registro_stmt = """
+    INSERT INTO recetas_por_visita (paciente_id, doctor_id, visita_id, receta)
+    VALUES (?, ?, ?, ?)
+"""
 
 
 # QUERY TIME
 
-# Q1 - Obtener visitas del día, separando por tipo de visita
+# Q1 - Obtener visitas del día
 SELECT_VISITAS_POR_DIA = """
-    SELECT fecha, paciente_id, doctor_id, hora_inicio, hora_fin
-    FROM visitas_por_dia
+    SELECT fecha, paciente_id, doctor_id, hora_inicio, hora_fin, tipo_visita
+    FROM visitas_del_dia
     WHERE fecha = ?
 """
-# Q2 - Obtener todas las recetas emitidas por un doctor (Se le debe de pasar doctor ID)
+
+# Q2 - Obtener recetas por doctor
 SELECT_RECETAS_EMITIDAS = """
-    SELECT doctor_id, receta, paciente_id
+    SELECT doctor_id, receta, paciente_id, visita_id
     FROM recetas_por_visita
     WHERE doctor_id = ?
 """
-# Q3 - Obtener diagnóstico y tratamiento de un paciente (Se le debe de pasar paciente ID y fecha)
+
+# Q3 - Diagnóstico de paciente
 SELECT_DIAGNOSTICO_DE_PACIENTE = """
-    SELECT paciente_id, diagnostico, doctor_id
+    SELECT paciente_id, diagnostico, doctor_id, fecha
     FROM diagnosticos_por_visita
     WHERE doctor_id = ? AND paciente_id = ? AND fecha = ?
 """
-# Q4 - Conocer disponibilidad de doctor en fecha y hora específica (Se le debe pasar doctor ID y fecha y hora)
+
+# Q4 - Disponibilidad
 SELECT_DISPONIBILIDAD_DOCTOR = """
     SELECT fecha, doctor_id, paciente_id, tipo_visita, hora_inicio, hora_fin
     FROM visitas_del_dia
     WHERE fecha = ? AND doctor_id = ?
 """
 
+# Query para populate
+INSERT_VISITA_DEL_DIA = """
+    INSERT INTO visitas_del_dia (fecha, tipo_visita, paciente_id, doctor_id, hora_inicio, hora_fin)
+    VALUES (?, ?, ?, ?, ?, ?)
+"""
+INSERT_DIAGNOSTICO = """
+    INSERT INTO diagnosticos_por_visita (paciente_id, doctor_id, visita_id, diagnostico, fecha)
+    VALUES (?, ?, ?, ?, ?)
+"""
+
+
 def create_keyspace(session, keyspace, replication_factor):
-    print("creando keyspace")
+    print("Creando keyspace...")
     session.execute(CREATE_KEYSPACE.format(keyspace, replication_factor))
 
 def create_schema(session):
-    print("Creando tablas")
+    print("Creando tablas e índices...")
     session.execute(CREATE_VISITAS_POR_PACIENTE)
     session.execute(CREATE_VISITAS_DEL_DIA)
+    session.execute(CREATE_INDEX_DOCTOR)
+    session.execute(CREATE_INDEX_PACIENTE)
+
     session.execute(CREATE_RECETAS_POR_VISITA)
     session.execute(CREATE_SIGNOS_VITALES_POR_VISITA)
     session.execute(CREATE_DIAGNOSTICOS_POR_VISITA)

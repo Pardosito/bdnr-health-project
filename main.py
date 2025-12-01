@@ -4,34 +4,35 @@ from connect import get_mongo, get_cassandra, get_dgraph
 # servicios de mondongo
 from Mongo.doctor_service import (
     registrar_doctor,
-    buscar_doctor,
-    filtrar_por_especialidad
+    buscar_doctor_por_id,
+    buscar_doctor_por_nombre,
+    buscar_por_especialidad
 )
 
 from Mongo.pacientes_service import (
     registrar_paciente,
     consultar_paciente,
-    filtrar_pacientes,
-    obtener_info_medica
 )
 
 from Mongo.expediente_service import (
     crear_expediente,
+    obtener_expediente,
+    consultar_historial,
     agregar_padecimiento
 )
 
 from Mongo.pipelines import (
-    edad_promedio_y_meds,
-    buckets_por_edad
+    pipeline_buckets_edad,
+    pipeline_diagnostico_stats
 )
 
 
 def main():
 
     print("Conectando a bases de datos...")
-    get_mongo()
-    get_cassandra()
-    get_dgraph()
+    mongo = get_mongo()
+    cassandra = get_cassandra()
+    dgraph = get_dgraph()
 
     print("\n=== Plataforma de Integración de Datos de Salud ===")
 
@@ -92,17 +93,17 @@ def main():
                     "correo": input("Correo: "),
                     "consultorio": input("Consultorio: ")
                 }
-                print("ID generado:", registrar_doctor(data))
+                print("ID generado:", registrar_doctor(mongo, data))
 
             case 2:
                 print("\n--- Buscar doctor por nombre ---")
                 nombre = input("Nombre o ID del doctor: ")
-                print(buscar_doctor(nombre))
+                print(buscar_doctor_por_nombre(nombre))
 
             case 3:
                 print("\n--- Buscar doctor por especialidad ---")
                 esp = input("Especialidad: ")
-                print(filtrar_por_especialidad(esp))
+                print(buscar_por_especialidad(esp))
 
             case 4:
                 print("\n--- Registrar nuevo paciente ---")
@@ -137,12 +138,12 @@ def main():
                 filtros = {}
                 if sexo:
                     filtros["sexo"] = sexo
-                print(filtrar_pacientes(filtros))
+                print(consultar_paciente(filtros))
 
             case 8:
                 print("\n--- Información médica del paciente ---")
                 nombre = input("Nombre o ID: ")
-                print(obtener_info_medica(nombre))
+                print(obtener_expediente(nombre))
 
             case 9:
                 print("\n--- Añadir padecimiento ---")
@@ -153,12 +154,12 @@ def main():
             case 10:
                 print("\n--- Pipeline: edad promedio + frecuencia medicamentos ---")
                 diag = input("Padecimiento: ")
-                print(edad_promedio_y_meds(diag))
+                print(pipeline_diagnostico_stats(diag))
 
             case 11:
                 print("\n--- Pipeline: buckets de edad ---")
                 diag = input("Padecimiento: ")
-                print(buckets_por_edad(diag))
+                print(pipeline_buckets_edad(diag))
 
 
             # demas modulos

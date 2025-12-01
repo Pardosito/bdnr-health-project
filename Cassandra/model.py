@@ -66,7 +66,8 @@ CREATE_DIAGNOSTICOS_POR_VISITA = """
       doctor_id TEXT,
       visita_id TEXT,
       diagnostico TEXT,
-      PRIMARY KEY ((doctor_id), paciente_id, visita_id)
+      fecha DATE
+      PRIMARY KEY ((doctor_id), paciente_id, fecha)
     )
 """
 
@@ -113,13 +114,13 @@ SELECT_VISITAS_POR_DIA = """
 SELECT_RECETAS_EMITIDAS = """
     SELECT doctor_id, receta, paciente_id
     FROM recetas_por_visita
-    WHERE doctor_id = ? AND visita_id = ?
+    WHERE doctor_id = ?
 """
 # Q3 - Obtener diagnóstico y tratamiento de un paciente (Se le debe de pasar paciente ID y fecha)
 SELECT_DIAGNOSTICO_DE_PACIENTE = """
     SELECT paciente_id, diagnostico, doctor_id
     FROM diagnosticos_por_visita
-    WHERE doctor_id = ? AND paciente_id = ? AND visita_id = ?
+    WHERE doctor_id = ? AND paciente_id = ? AND fecha = ?
 """
 # Q4 - Conocer disponibilidad de doctor en fecha y hora específica (Se le debe pasar doctor ID y fecha y hora)
 SELECT_DISPONIBILIDAD_DOCTOR = """

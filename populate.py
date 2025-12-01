@@ -11,6 +11,7 @@ from connect import get_mongo, get_cassandra, get_dgraph
 from Mongo.doctor_service import registrar_doctor
 from Mongo.pacientes_service import registrar_paciente
 from Mongo.expediente_service import crear_expediente, agregar_padecimiento
+from Mongo.utils import get_doctor_by_id, get_paciente_by_id
 from Cassandra import model
 from Dgraph import dgraph as dg_utils # Asumiendo que las funciones de creación están aquí
 
@@ -39,10 +40,11 @@ def poblar_todo():
         print("❌ Error: No se pudo conectar a todas las bases de datos.")
         return
 
-    # Limpiar Dgraph (Opcional, para no duplicar en pruebas)
-    op = pydgraph.Operation(drop_all=True)
-    client_dgraph.alter(op)
-    dg_utils.set_schema() # Recargar schema después de borrar
+    # Limpiar Dgraph (Opcional, para no duplicar en pruebas) — solo si hay cliente
+    if client_dgraph is not None and dg_utils is not None:
+        op = pydgraph.Operation(drop_all=True)
+        client_dgraph.alter(op)
+        dg_utils.set_schema() # Recargar schema después de borrar
 
     # ==========================================
     # FASE 1: MONDONGO (Doctores y Pacientes)
@@ -65,12 +67,20 @@ def poblar_todo():
                 "correo": fake.email(),
                 "consultorio": str(random.randint(100, 500))
             }
-            doc_id = registrar_doctor(db_mongo, doc_data)
+            reg = registrar_doctor(db_mongo, doc_data)
+            # reg es el ObjectId insertado; úsalo correctamente (no asignar el resultado de print)
+            doc_id = reg
+            print(f"Doctor creado: id:{doc_id}, nombre:{get_doctor_by_id(doc_id)}")
+            # Mostrar mapping claro para pruebas de Cassandra
+            print(f"  -> MAPPING DOCTOR: nombre='{doc_data['nombre']}', mongo_id='{str(doc_id)}', especialidad='{esp}'")
             lista_doctores.append({**doc_data, "_id": str(doc_id)})
 
-            # Sincronizar con Dgraph inmediatamente
-            dg_doc_uid = dg_utils.crear_doctor(client_dgraph, doc_data["nombre"], str(doc_id), esp)
-            lista_doctores[-1]["dgraph_uid"] = dg_doc_uid
+            # Sincronizar con Dgraph inmediatamente (si está disponible)
+            if client_dgraph is not None and dg_utils is not None:
+                dg_doc_uid = dg_utils.crear_doctor(client_dgraph, doc_data["nombre"], str(doc_id), esp)
+                lista_doctores[-1]["dgraph_uid"] = dg_doc_uid
+            else:
+                lista_doctores[-1]["dgraph_uid"] = None
 
     # 1.2 Crear Pacientes y Expedientes
     # Generamos 20 pacientes con edades variadas para probar los buckets
@@ -89,7 +99,9 @@ def poblar_todo():
         }
         pac_id = registrar_paciente(db_mongo, pac_data)
         str_pac_id = str(pac_id)
-        print(str_pac_id)
+        print(f"Paciente creado: id:{str_pac_id}, nombre: {get_paciente_by_id(pac_id)}")
+        # Mostrar mapping claro para pruebas de Cassandra
+        print(f"  -> MAPPING PACIENTE: nombre='{pac_data['nombre']}', mongo_id='{str_pac_id}', fecha_nac='{pac_data['fecha_nac']}'")
 
         # Calcular edad para Dgraph
         edad = (date.today() - fecha_nac).days // 365
@@ -146,6 +158,7 @@ def poblar_todo():
 
         for _ in range(num_visitas):
             fecha_visita = fake.date_between(start_date='-1y', end_date='today')
+            print(fecha_visita)
             hora_inicio_uuid = uuid.uuid1() # TimeUUID para Cassandra
             hora_fin_uuid = uuid.uuid1()    # Simulamos que ya terminó
 
@@ -157,6 +170,7 @@ def poblar_todo():
                 hora_inicio_uuid,
                 hora_fin_uuid
             ])
+            print(f"  [CASSANDRA] Historial insertado: fecha={fecha_visita} paciente_id={paciente['_id']} doctor_id={doctor_asignado['_id']} visita_id={hora_inicio_uuid}")
 
             # B) Insertar en Agenda (visitas_del_dia)
             # Schema: fecha, tipo_visita, paciente_id, doctor_id, hora_inicio, hora_fin
@@ -169,6 +183,7 @@ def poblar_todo():
                 hora_inicio_uuid,
                 hora_fin_uuid
             ])
+            print(f"  [CASSANDRA] Agenda insertada: fecha={fecha_visita} tipo={tipo} paciente_id={paciente['_id']} doctor_id={doctor_asignado['_id']} hora_inicio={hora_inicio_uuid}")
 
             # C) Generar Receta (50% probabilidad)
             if random.random() > 0.5:
@@ -182,6 +197,7 @@ def poblar_todo():
                     str(hora_inicio_uuid),
                     receta_texto
                 ])
+                print(f"  [CASSANDRA] Receta insertada: paciente_id={paciente['_id']} doctor_id={doctor_asignado['_id']} visita_id={str(hora_inicio_uuid)} receta='{receta_texto}'")
 
                 # D) Generar Diagnóstico asociado
                 diag_texto = random.choice(PADECIMIENTOS)
@@ -194,6 +210,7 @@ def poblar_todo():
                     diag_texto,
                     fecha_visita
                 ])
+                print(f"  [CASSANDRA] Diagnóstico insertado: paciente_id={paciente['_id']} doctor_id={doctor_asignado['_id']} visita_id={str(hora_inicio_uuid)} diag='{diag_texto}' fecha={fecha_visita}")
 
     print("✅ Historial de visitas generado en Cassandra.")
 

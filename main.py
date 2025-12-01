@@ -26,34 +26,31 @@ from Mongo.pipelines import (
 )
 
 #servicios de cassandra
-from Cassandra.visitas_service import (
-    registrar_visita,
-    historial_visitas,
-    visitas_por_dia,
-    registrar_signos_vitales,
-    historial_signos,
-    guardar_receta,
-    recetas_por_rango,
-    historial_accesos,
-    diagnosticos_doctor_dia,
-    diagnostico_y_tratamiento_por_fecha,
-    disponibilidad_doctor
+from Cassandra.cassandra import (
+    registro_inicio_visita,
+    registro_fin_visita,
+    obtener_visitas_del_dia,
+    registrar_signo_vital,
+    registrar_receta_por_visita,
+    consultar_recetas_por_doctor,
+    obtener_diagnostico_tratamiento_paciente,
+    verificar_disponibilidad_doctor
 )
 
 #dgraph servicios
-from dgraph_queries import (
-    pacientes_vistos_por_otro_especialista,
-    meds_recetados_juntos,
-    sugerir_segunda_opinion,
-    detectar_conflictos_tratamiento,
-    analizar_red_doctor,
-    ruta_tratamiento_paciente,
-    pacientes_polifarmacia,
-    detectar_sobredosis,
-    referencias_doctores,
-    frecuencia_tratamientos_por_especialidad,
-    padecimientos_por_especialidad
-)
+# from Dgraph.dgraph import (
+#     pacientes_vistos_por_otro_especialista,
+#     meds_recetados_juntos,
+#     sugerir_segunda_opinion,
+#     detectar_conflictos_tratamiento,
+#     analizar_red_doctor,
+#     ruta_tratamiento_paciente,
+#     pacientes_polifarmacia,
+#     detectar_sobredosis,
+#     referencias_doctores,
+#     frecuencia_tratamientos_por_especialidad,
+#     padecimientos_por_especialidad
+# )
 
 
 
@@ -119,7 +116,7 @@ def main():
 
             #mondongo
             case 1:
-                print("\n--- Registrar nuevo doctor ---")
+                print("\n--- Registrar nuevo doctor (MongoDB) ---")
                 data = {
                     "nombre": input("Nombre: "),
                     "especialidad": input("Especialidad: "),
@@ -132,15 +129,20 @@ def main():
                 print("ID generado:", registrar_doctor(mongo, data))
 
             case 2:
-                nombre = input("Nombre del doctor: ")
-                print(buscar_doctor_por_nombre(mongo, nombre))
+                print("\n--- Buscar doctor por nombre (MongoDB — búsqueda parcial) ---")
+                nombre = input("Nombre o ID del doctor: ")
+                if mongo is None:
+                    print("[ERROR] MongoDB no está conectado.")
+                else:
+                    print(buscar_doctor_por_nombre(mongo, nombre))
 
             case 3:
                 esp = input("Especialidad: ")
+                print("(MongoDB) Resultados de búsqueda por especialidad:")
                 print(buscar_por_especialidad(mongo, esp))
 
             case 4:
-                print("\n--- Registrar nuevo paciente ---")
+                print("\n--- Registrar nuevo paciente (MongoDB) ---")
                 data = {
                     "nombre": input("Nombre: "),
                     "fecha_nac": input("Fecha nacimiento (YYYY-MM-DD): "),
@@ -155,14 +157,17 @@ def main():
                 print("ID generado:", registrar_paciente(mongo, data))
 
             case 5:
+                print("\n--- Crear expediente para paciente (MongoDB) ---")
                 pid = input("ID del paciente: ")
                 print(crear_expediente(pid))
 
             case 6:
+                print("\n--- Consultar paciente y expediente (MongoDB) ---")
                 nombre = input("Nombre o ID del paciente: ")
                 print(consultar_paciente(mongo, nombre))
 
             case 7:
+                print("\n--- Filtrar pacientes (MongoDB) ---")
                 sexo = input("Sexo (ENTER para ignorar): ")
                 filtros = {}
                 if sexo:
@@ -170,19 +175,23 @@ def main():
                 print(consultar_paciente(mongo, filtros))
 
             case 8:
+                print("\n--- Obtener expediente médico del paciente (MongoDB) ---")
                 nombre = input("Nombre o ID: ")
                 print(obtener_expediente(mongo, nombre))
 
             case 9:
+                print("\n--- Añadir padecimiento al expediente (MongoDB) ---")
                 pid = input("ID paciente: ")
                 pade = input("Padecimiento: ")
                 print(agregar_padecimiento(mongo, pid, pade))
 
             case 10:
+                print("\n--- Pipeline: edad promedio + frecuencia medicamentos (MongoDB aggregation) ---")
                 diag = input("Padecimiento: ")
                 print(pipeline_diagnostico_stats(mongo, diag))
 
             case 11:
+                print("\n--- Pipeline: buckets de edad por padecimiento (MongoDB aggregation) ---")
                 diag = input("Padecimiento: ")
                 print(pipeline_buckets_edad(mongo, diag))
 
@@ -190,101 +199,111 @@ def main():
 
             #cassandra
             case 12:
-                print("\n--- Registrar visita médica ---")
-                pid = input("Paciente ID: ")
-                did = input("Doctor ID: ")
-                motivo = input("Motivo: ")
-                print(registrar_visita(cassandra, pid, did, motivo))
+                print("\n--- Registrar inicio de visita (Cassandra: visitas_por_paciente) ---")
+                paciente_nombre = input("Nombre del paciente: ")
+                doctor_nombre = input("Nombre del doctor: ")
+                registro_inicio_visita(paciente_nombre, doctor_nombre)
 
             case 13:
-                pid = input("Paciente ID: ")
-                print(historial_visitas(cassandra, pid))
+                print("\n--- Registrar fin de visita (Cassandra: actualizar timestamp_fin) ---")
+                paciente_nombre = input("Nombre del paciente: ")
+                registro_fin_visita(paciente_nombre)
 
             case 14:
-                fecha = input("Fecha (YYYY-MM-DD): ")
-                print(visitas_por_dia(cassandra, fecha))
+                print("\n--- Obtener visitas programadas para un día (Cassandra: visitas_del_dia) ---")
+                fecha = str(input("Ingresa la fecha: "))
+                obtener_visitas_del_dia(fecha)
 
             case 15:
-                pid = input("Paciente ID: ")
-                tipo = input("Tipo signo: ")
+                print("\n--- Registrar signo vital (Cassandra: signos_vitales_por_visita) ---")
+                paciente_nombre = input("Nombre del paciente: ")
+                doctor_nombre = input("Nombre del doctor: ")
+                tipo = input("Tipo de medición: ")
                 valor = input("Valor: ")
-                print(registrar_signos_vitales(cassandra, pid, tipo, valor))
+                registrar_signo_vital(paciente_nombre, doctor_nombre, tipo, valor)
 
             case 16:
-                pid = input("Paciente ID: ")
-                signo = input("Tipo signo vital: ")
-                print(historial_signos(cassandra, pid, signo))
+                print("\n--- Historial de signos vitales (Cassandra) — no implementado ---")
+                print("Funcionalidad no disponible en el módulo de Cassandra actual.")
 
             case 17:
-                pid = input("Paciente ID: ")
-                receta = input("Receta: ")
-                print(guardar_receta(cassandra, pid, receta))
+                print("\n--- Guardar receta médica (Cassandra: recetas_por_visita) ---")
+                paciente_nombre = input("Nombre del paciente: ")
+                doctor_nombre = input("Nombre del doctor: ")
+                visita_id = input("Visita ID (opcional): ")
+                receta = input("Texto de la receta: ")
+                registrar_receta_por_visita(paciente_nombre, doctor_nombre, visita_id, receta)
 
             case 18:
-                did = input("Doctor ID: ")
-                f1 = input("Inicio: ")
-                f2 = input("Fin: ")
-                print(recetas_por_rango(cassandra, did, f1, f2))
+                print("\n--- Consultar recetas por doctor ---")
+                doctor_nombre = input("Nombre del doctor: ")
+                consultar_recetas_por_doctor(doctor_nombre)
 
             case 19:
-                print(historial_accesos(cassandra))
+                print("\n--- Historial de accesos (Cassandra) — no implementado ---")
+                print("Funcionalidad no disponible en el módulo de Cassandra actual.")
 
             case 20:
-                did = input("Doctor ID: ")
-                fecha = input("Fecha: ")
-                print(diagnosticos_doctor_dia(cassandra, did, fecha))
+                print("\n--- Consultar diagnósticos por doctor en una fecha (Cassandra) ---")
+                doctor_nombre = input("Nombre del doctor: ")
+                paciente_nombre = input("Nombre del paciente (dejar vacío para todos): ")
+                fecha = input("Fecha (YYYY-MM-DD): ")
+                obtener_diagnostico_tratamiento_paciente(doctor_nombre, paciente_nombre or None, fecha)
 
             case 21:
-                pid = input("Paciente ID: ")
-                fecha = input("Fecha: ")
-                print(diagnostico_y_tratamiento_por_fecha(cassandra, pid, fecha))
+                print("\n--- Obtener diagnóstico y tratamiento por fecha (Cassandra) ---")
+                doctor_nombre = input("Nombre del doctor: ")
+                paciente_nombre = input("Nombre del paciente: ")
+                fecha = input("Fecha (YYYY-MM-DD): ")
+                obtener_diagnostico_tratamiento_paciente(doctor_nombre, paciente_nombre, fecha)
 
             case 22:
-                did = input("Doctor ID: ")
-                fecha = input("Fecha: ")
-                print(disponibilidad_doctor(cassandra, did, fecha))
+                print("\n--- Consultar disponibilidad del doctor (Cassandra: visitas_del_dia) ---")
+                doctor_nombre = input("Nombre del doctor: ")
+                fecha = input("Fecha (YYYY-MM-DD): ")
+                verificar_disponibilidad_doctor(doctor_nombre, fecha)
 
 
 
-            #dgraph
-            case 23:
-                did = input("Doctor ID: ")
-                print(pacientes_vistos_por_otro_especialista(dgraph, did))
+            # #dgraph
+            # case 23:
+            #     did = input("Doctor ID: ")
+            #     print(pacientes_vistos_por_otro_especialista(dgraph, did))
 
-            case 24:
-                cond = input("Condición médica: ")
-                print(meds_recetados_juntos(dgraph, cond))
+            # case 24:
+            #     cond = input("Condición médica: ")
+            #     print(meds_recetados_juntos(dgraph, cond))
 
-            case 25:
-                diag = input("Diagnóstico: ")
-                print(sugerir_segunda_opinion(dgraph, diag))
+            # case 25:
+            #     diag = input("Diagnóstico: ")
+            #     print(sugerir_segunda_opinion(dgraph, diag))
 
-            case 26:
-                pid = input("Paciente ID: ")
-                print(detectar_conflictos_tratamiento(dgraph, pid))
+            # case 26:
+            #     pid = input("Paciente ID: ")
+            #     print(detectar_conflictos_tratamiento(dgraph, pid))
 
-            case 27:
-                did = input("Doctor ID: ")
-                print(analizar_red_doctor(dgraph, did))
+            # case 27:
+            #     did = input("Doctor ID: ")
+            #     print(analizar_red_doctor(dgraph, did))
 
-            case 28:
-                pid = input("Paciente ID: ")
-                print(ruta_tratamiento_paciente(dgraph, pid))
+            # case 28:
+            #     pid = input("Paciente ID: ")
+            #     print(ruta_tratamiento_paciente(dgraph, pid))
 
-            case 29:
-                print(pacientes_polifarmacia(dgraph))
+            # case 29:
+            #     print(pacientes_polifarmacia(dgraph))
 
-            case 30:
-                print(detectar_sobredosis(dgraph))
+            # case 30:
+            #     print(detectar_sobredosis(dgraph))
 
-            case 31:
-                print(referencias_doctores(dgraph))
+            # case 31:
+            #     print(referencias_doctores(dgraph))
 
-            case 32:
-                print(frecuencia_tratamientos_por_especialidad(dgraph))
+            # case 32:
+            #     print(frecuencia_tratamientos_por_especialidad(dgraph))
 
-            case 33:
-                print(padecimientos_por_especialidad(dgraph))
+            # case 33:
+            #     print(padecimientos_por_especialidad(dgraph))
 
             #salir
             case 0:

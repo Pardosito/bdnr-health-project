@@ -1,4 +1,6 @@
 from bson import ObjectId
+import re
+# No crear la conexión al importar: use siempre el parámetro `db` pasado a las funciones.
 
 #Registro de doctor
 def registrar_doctor(db, data):
@@ -15,7 +17,19 @@ def buscar_doctor_por_id(db, id_str):
 
 #búsqueda por nombre
 def buscar_doctor_por_nombre(db, nombre):
-    return list(db.doctores.find({"nombre": nombre}))
+    if db is None:
+        print("[Mongo] Conexión no disponible al buscar doctor por nombre.")
+        return None
+
+    try:
+        # Búsqueda flexible: permite fragmentos y no distingue mayúsculas/minúsculas
+        pattern = ".*" + re.escape(nombre.strip()) + ".*"
+        query = {"nombre": {"$regex": pattern, "$options": "i"}}
+        doctor = db.doctores.find_one(query)
+        return doctor
+    except Exception as e:
+        print(f"Errorsito: {e}")
+        return None
 
 
 #búsqueda de doctor por especialidad

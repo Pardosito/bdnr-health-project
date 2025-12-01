@@ -29,6 +29,9 @@ def get_visita_activa(session, paciente_id):
         WHERE paciente_id = ?
         LIMIT 1
     """
+    if paciente_id is None:
+        print("[Cassandra.utils] get_visita_activa: paciente_id es None — no se puede consultar visita activa.")
+        return None
     stmt = session.prepare(query)
     row = session.execute(stmt, [paciente_id]).one()
 
@@ -40,21 +43,22 @@ def get_visita_activa(session, paciente_id):
             return None
     return None
 
-def visitasEnum(Enum):
-  CONSULTA_INICIAL = 1
-  CONSULTA_SEGUIMIENTO = 2
-  URGENCIA = 3
-  PREVENTIVA = 4
-  POST_CIRUGIA = 5
-  REVISION_MEDICA = 6
+class visitasEnum(Enum):
+        CONSULTA_INICIAL = 1
+        CONSULTA_SEGUIMIENTO = 2
+        URGENCIA = 3
+        PREVENTIVA = 4
+        POST_CIRUGIA = 5
+        REVISION_MEDICA = 6
 
-def medicionesEnum(Enum):
-  PRESION = 1
-  RITMO_CARDIACO = 2
-  TEMPERATURA = 3
-  OXIGENO = 4
-  FREC_RESPIRATORIA = 5
-  PESO = 6
-  ESTATURA = 7
+
+class medicionesEnum(Enum):
+        PRESION = 1
+        RITMO_CARDIACO = 2
+        TEMPERATURA = 3
+        OXIGENO = 4
+        FREC_RESPIRATORIA = 5
+        PESO = 6
+        ESTATURA = 7
 
 

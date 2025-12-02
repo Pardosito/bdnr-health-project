@@ -1,7 +1,7 @@
 from connect import get_mongo, get_cassandra, get_dgraph
 
 #servicios de mondongo
-from Mongo.doctor_service import (
+from Mongo.doctors_service import (
     registrar_doctor,
     buscar_doctor_por_id,
     buscar_doctor_por_nombre,

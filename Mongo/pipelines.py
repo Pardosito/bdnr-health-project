@@ -1,81 +1,41 @@
-from datetime import datetime
+from Mongo.mongo import expedientes
 
-# PIPELINE: Requerimiento 9: Edad promedio + conteo de medicamento por diagnóstico
-pipeline_diagnostico_stats = [
-    {
-        "$lookup": {
+def edad_promedio_y_meds(diagnostico):
+    pipeline = [
+        {"$lookup": {
             "from": "pacientes",
             "localField": "paciente_id",
             "foreignField": "_id",
             "as": "paciente"
-        }
-    },
-    {"$unwind": "$paciente"},
+        }},
+        {"$unwind": "$paciente"},
+        {"$unwind": "$padecimientos"},
+        {"$unwind": "$tratamientos"},
+        {"$match": {"padecimientos": diagnostico}},
+        {"$group": {
+            "_id": "$padecimientos",
+            "edad_promedio": {"$avg": "$paciente.edad"},
+            "frecuencia_medicamentos": {"$sum": 1}
+        }}
+    ]
+    return list(expedientes.aggregate(pipeline))
 
-    {"$match": {"padecimientos": "<DIAGNOSTICO>"}},
-
-    {
-        "$addFields": {
-            "edad": {
-                "$dateDiff": {
-                    "startDate": {"$dateFromString": {"dateString": "$paciente.fecha_nac"}},
-                    "endDate": datetime.utcnow(),
-                    "unit": "year"
-                }
-            }
-        }
-    },
-
-    {"$unwind": "$tratamientos"},
-
-    {
-        "$group": {
-            "_id": "$tratamientos",
-            "diagnostico": {"$first": "<DIAGNOSTICO>"},
-            "edad_promedio": {"$avg": "$edad"},
-            "veces_prescrito": {"$sum": 1}
-        }
-    }
-]
-
-
-
-
-# PIPELINE: Requerimiento 10: Buckets de edades por padecimiento
-pipeline_buckets_edad = [
-    {
-        "$lookup": {
+def buckets_por_edad(diagnostico):
+    pipeline = [
+        {"$lookup": {
             "from": "pacientes",
             "localField": "paciente_id",
             "foreignField": "_id",
             "as": "paciente"
-        }
-    },
-    {"$unwind": "$paciente"},
-
-    {"$match": {"padecimientos": "<PADECIMIENTO>"}},
-
-    {
-        "$addFields": {
-            "edad": {
-                "$dateDiff": {
-                    "startDate": {"$dateFromString": {"dateString": "$paciente.fecha_nac"}},
-                    "endDate": datetime.utcnow(),
-                    "unit": "year"
-                }
-            }
-        }
-    },
-
-    {
-        "$bucket": {
-            "groupBy": "$edad",
-            "boundaries": [0, 18, 30, 45, 60, 200],
-            "default": "unknown",
-            "output": {
-                "conteo_pacientes": {"$sum": 1},
-                "nombres": {"$push": "$paciente.nombre"}
-            }
-        }
-    }
-]
+        }},
+        {"$unwind": "$paciente"},
+        {"$unwind": "$padecimientos"},
+        {"$match": {"padecimientos": diagnostico}},
+        {"$bucket": {
+            "groupBy": "$paciente.edad",
+            "boundaries": [0,18,30,45,60,150],
+            "default": "Fuera de rango",
+            "output": {"total": {"$sum": 1}}
+        }}
+    ]
+    return list(expedientes.aggregate(pipeline))

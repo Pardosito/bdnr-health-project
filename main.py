@@ -1,26 +1,26 @@
 from connect import get_mongo, get_cassandra, get_dgraph
 
 #servicios de mondongo
-from Mongo.doctors_service import (
+from Mongo.services.doctors_service import (
     registrar_doctor,
     buscar_doctor_por_id,
     buscar_doctor_por_nombre,
     buscar_por_especialidad
 )
 
-from Mongo.pacientes_service import (
+from Mongo.services.pacientes_service import (
     registrar_paciente,
     consultar_paciente,
 )
 
-from Mongo.expediente_service import (
+from Mongo.services.expediente_service import (
     crear_expediente,
     obtener_expediente,
     consultar_historial,
     agregar_padecimiento
 )
 
-from Mongo.pipelines import (
+from Mongo.pipelines.aggregations import (
     pipeline_buckets_edad,
     pipeline_diagnostico_stats
 )

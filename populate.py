@@ -7,8 +7,8 @@ import pydgraph
 # Imports de tus módulos
 from connect import get_mongo, get_cassandra, get_dgraph
 from Mongo.doctor_service import registrar_doctor
-from Mongo.pacientes_service import registrar_paciente
-from Mongo.expediente_service import crear_expediente
+from Mongo.services.pacientes_service import registrar_paciente
+from Mongo.services.expediente_service import crear_expediente
 from Cassandra import model
 from Dgraph import dgraph as dg_utils
 from Mongo.utils import get_doctor_by_id, get_paciente_by_id

@@ -15,26 +15,29 @@ def buscar_doctor_por_id(doctor_id: str):
         return {"error": "ID inválido."}
 
     doc = doctores.find_one({"_id": ObjectId(doctor_id)})
-    return doc if doc else {"error": "Doctor no encontrado."}
+    if not doc:
+        return {"error": "Doctor no encontrado."}
 
+    return print(f"NOMBRE: {doc['nombre']}, ESPECIALIDAD: {doc['especialidad']}, SUBESPECIALIDAD: {doc['subespecialidad']}, CEDULA: {doc['cedula']}, TELEFONO: {doc['telefono']}, CORREO: {doc['correo']}, CONSULTORIO: {doc['consultorio']}")
 
 #busqueda de doctor por nombre
 def buscar_doctor_por_nombre(nombre: str):
     """Búsqueda flexible por nombre (regex)."""
     doc = doctores.find_one({"nombre": {"$regex": nombre, "$options": "i"}})
-    return doc if doc else {"error": "Doctor no encontrado."}
-
+    if not doc:
+        return {"error": "Doctor no encontrado."}
+    else:
+        return print(f"NOMBRE: {doc['nombre']}, ESPECIALIDAD: {doc['especialidad']}, SUBESPECIALIDAD: {doc['subespecialidad']}, CEDULA: {doc['cedula']}, TELEFONO: {doc['telefono']}, CORREO: {doc['correo']}, CONSULTORIO: {doc['consultorio']}")
 
 #filtrado de doctores por especialidad
 def buscar_por_especialidad(especialidad: str):
     """Devuelve solo los campos relevantes para mostrar al usuario."""
     resultados = list(doctores.find(
         {"especialidad": especialidad},
-        {"_id": 1, "nombre": 1, "especialidad": 1, "subespecialidad": 1,
-         "correo": 1, "consultorio": 1}
     ))
 
     if not resultados:
         return {"mensaje": "No hay doctores con esa especialidad."}
 
-    return resultados
+    for doc in resultados:
+        return print(f"NOMBRE: {doc['nombre']}, ESPECIALIDAD: {doc['especialidad']}, SUBESPECIALIDAD: {doc['subespecialidad']}, CEDULA: {doc['cedula']}, TELEFONO: {doc['telefono']}, CORREO: {doc['correo']}, CONSULTORIO: {doc['consultorio']}")

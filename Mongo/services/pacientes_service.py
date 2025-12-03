@@ -1,4 +1,5 @@
 from Mongo.mongo import pacientes, expedientes
+from Mongo.utils import get_paciente_id
 from bson import ObjectId
 
 #registrar pacientes
@@ -19,8 +20,7 @@ def buscar_paciente_por_id(paciente_id: str):
     if not paciente:
         return {"error": "Paciente no encontrado."}
 
-    paciente["_id"] = str(paciente["_id"])
-    return paciente
+    return print(f"NOMBRE: {paciente['nombre']}, FECHA_NAC: {paciente['fecha_nac']}, SEXO: {paciente['sexo']}, TELEFONO: {paciente['telefono']}, CORREO: {paciente['correo']}, CONTACTO EMERGENCIA: {paciente['cont_eme']}, DIRECCION: {paciente['direccion']}, SEGURO: {paciente['seguro']}, POLIZA: {paciente['poliza']}")
 
 
 
@@ -34,7 +34,7 @@ def buscar_paciente_por_nombre(nombre: str):
         return {"error": "Paciente no encontrado."}
 
     paciente["_id"] = str(paciente["_id"])
-    return paciente
+    return print(f"NOMBRE: {paciente['nombre']}, FECHA_NAC: {paciente['fecha_nac']}, SEXO: {paciente['sexo']}, TELEFONO: {paciente['telefono']}, CORREO: {paciente['correo']}, CONTACTO EMERGENCIA: {paciente['cont_eme']}, DIRECCION: {paciente['direccion']}, SEGURO: {paciente['seguro']}, POLIZA: {paciente['poliza']}")
 
 
 
@@ -43,14 +43,8 @@ def obtener_paciente_y_expediente(id_o_nombre: str):
     """Devuelve {paciente, expediente} según ID o nombre."""
 
     # Selección automática según formato
-    paciente = (
-        buscar_paciente_por_id(id_o_nombre)
-        if ObjectId.is_valid(id_o_nombre)
-        else buscar_paciente_por_nombre(id_o_nombre)
-    )
-
-    if "error" in paciente:
-        return {"error": paciente["error"]}
+    buscar_paciente_por_id(id_o_nombre)
+    paciente = get_paciente_id(id_o_nombre)
 
     # Obtener expediente
     expediente = expedientes.find_one({"paciente_id": ObjectId(paciente["_id"])})

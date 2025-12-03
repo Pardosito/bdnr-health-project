@@ -6,7 +6,7 @@ import pydgraph
 
 # Imports de tus módulos
 from connect import get_mongo, get_cassandra, get_dgraph
-from Mongo.doctor_service import registrar_doctor
+from Mongo.services.doctors_service import registrar_doctor
 from Mongo.services.pacientes_service import registrar_paciente
 from Mongo.services.expediente_service import crear_expediente
 from Cassandra import model
@@ -75,7 +75,7 @@ def poblar_todo():
                 "correo": fake.email(),
                 "consultorio": str(random.randint(100, 500))
             }
-            doc_id = registrar_doctor(db_mongo, doc_data)
+            doc_id = registrar_doctor(doc_data)
             print(f"id: {doc_id} nombre: {get_doctor_by_id(doc_id)}")
 
             # Dgraph
@@ -95,7 +95,7 @@ def poblar_todo():
             "seguro": "GNP",
             "poliza": str(fake.random_number(digits=10))
         }
-        pac_id = registrar_paciente(db_mongo, pac_data)
+        pac_id = registrar_paciente(pac_data)
         print(f"id: {pac_id} nombre: {get_paciente_by_id(pac_id)}")
 
         # Dgraph
@@ -103,7 +103,7 @@ def poblar_todo():
         dg_uid = dg_utils.crear_paciente(client_dgraph, pac_data["nombre"], str(pac_id), edad, pac_data["direccion"])
 
         # Crear expediente vacío en Mongo
-        crear_expediente(db_mongo, {"paciente_id": pac_id, "alergias": [], "padecimientos": [], "tratamientos": []})
+        crear_expediente({"paciente_id": pac_id, "alergias": [], "padecimientos": [], "tratamientos": []})
 
         lista_pacientes.append({**pac_data, "_id": str(pac_id), "dgraph_uid": dg_uid})
 

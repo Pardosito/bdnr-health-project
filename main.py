@@ -49,7 +49,9 @@ from Dgraph.queries import (
 )
 
 
-#submenu mongo
+# ======================
+# SUBMENU MONGO
+# ======================
 def submenu_mongo():
     while True:
         print("\n=== MONDONGO  ===")
@@ -143,7 +145,9 @@ def submenu_mongo():
 
 
 
-#submenu cassandra
+# ======================
+# SUBMENU CASSANDRA
+# ======================
 def submenu_cassandra():
     while True:
         print("\n=== CASSANDRA ===")
@@ -209,8 +213,11 @@ def submenu_cassandra():
                 print("Opción inválida.")
 
 
-#submenu dgraph
-def submenu_dgraph():
+
+# ======================
+# SUBMENU DGRAPH (CORREGIDO)
+# ======================
+def submenu_dgraph(dgraph):
     while True:
         print("\n=== DGRAPH ===")
         print("1. Propagación contagiosa")
@@ -264,7 +271,9 @@ def submenu_dgraph():
 
 
 
-#menu principal
+# ======================
+# MENU PRINCIPAL
+# ======================
 def main():
     print("Conectando a bases de datos...")
     mongo = get_mongo()
@@ -286,7 +295,7 @@ def main():
             case 2:
                 submenu_cassandra()
             case 3:
-                submenu_dgraph()
+                submenu_dgraph(dgraph)   # ✔ AQUI SE PASA DGRAPH
             case 0:
                 break
             case _:

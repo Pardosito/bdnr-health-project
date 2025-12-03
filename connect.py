@@ -7,19 +7,15 @@ from Cassandra import model
 
 CASSANDRA_KEYSPACE = "health_service"
 
-#mondongo
+#conexion de mondongo
 def get_mongo():
-    """
-    Retorna una conexión funcional a MongoDB.
-    Si falla, regresa None pero NO truena todo el sistema.
-    """
     try:
         client = MongoClient(
             "mongodb://localhost:27017/",
             serverSelectionTimeoutMS=2000
         )
         db = client["plataforma_salud"]
-        client.server_info()   # fuerza verificar conexión
+        client.server_info()
         print("[MongoDB] Conectado correctamente.")
         return db
 
@@ -28,7 +24,7 @@ def get_mongo():
         return None
 
 
-#cassandra
+#conexion de cassandra
 def get_cassandra():
     try:
         cluster = Cluster(["127.0.0.1"])
@@ -36,7 +32,6 @@ def get_cassandra():
         model.create_keyspace(session, CASSANDRA_KEYSPACE, 1)
         session.set_keyspace(CASSANDRA_KEYSPACE)
         model.create_schema(session)
-
         print("[Cassandra] Conectado e inicializado correctamente.")
         return session
 
@@ -48,11 +43,10 @@ def get_cassandra():
         return None
 
 
-#dgraph
+#dgrapph solo la conexion
 def get_dgraph():
     """
-    Crea y retorna un cliente Dgraph usando gRPC.
-    Solo se usa si lo necesitas en pruebas.
+    SOLO conecta a Dgraph. TODO lo demás se prueba desde el main.
     """
     try:
         stub = pydgraph.DgraphClientStub("localhost:9080")
@@ -64,11 +58,8 @@ def get_dgraph():
         print("[Dgraph] ERROR de conexión:", e)
         return None
 
-#las tres bases
+#todas las bases
 def get_all_connections():
-    """
-    Regresa un diccionario con TODAS las conexiones.
-    """
     return {
         "mongo": get_mongo(),
         "cassandra": get_cassandra(),
@@ -76,8 +67,8 @@ def get_all_connections():
     }
 
 
-#preuba rápida
 if __name__ == "__main__":
     print("=== Probando conexiones ===")
     conns = get_all_connections()
     print(conns)
+

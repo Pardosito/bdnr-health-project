@@ -37,7 +37,8 @@ CREATE_RECETAS_POR_VISITA = """
       doctor_id TEXT,
       visita_id TEXT,
       receta TEXT,
-      PRIMARY KEY ((doctor_id), visita_id)
+      fecha_registro TIMEUUID,
+      PRIMARY KEY ((doctor_id), visita_id, fecha_registro)
     )
 """
 
@@ -61,7 +62,7 @@ CREATE_DIAGNOSTICOS_POR_VISITA = """
       diagnostico TEXT,
       fecha DATE,
       momento_registro TIMEUUID,
-      PRIMARY KEY ((doctor_id), paciente_id, fecha)
+      PRIMARY KEY ((doctor_id), paciente_id, fecha, momento_registro)
     )
 """
 
@@ -88,8 +89,8 @@ signo_vital_registro_stmt = """
 
 # I4 - Registrar receta médica
 recete_medica_registro_stmt = """
-    INSERT INTO recetas_por_visita (paciente_id, doctor_id, visita_id, receta)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO recetas_por_visita (paciente_id, doctor_id, visita_id, receta, fecha_registro)
+    VALUES (?, ?, ?, ?, ?)
 """
 
 

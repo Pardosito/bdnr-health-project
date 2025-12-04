@@ -146,7 +146,7 @@ def agregar_tratamiento(nombre_paciente: str, nombre_doctor: str, tratamiento: s
         if doc_id:
             try:
                 stmt = session.prepare(model.recete_medica_registro_stmt)
-                session.execute(stmt, [str(paciente_id), str(doc_id), None, tratamiento])
+                session.execute(stmt, [str(paciente_id), str(doc_id), None, tratamiento, uuid.uuid1()])
             except Exception as e:
                 mensaje += f"(Error sincronizando dbs: {e})"
         else:

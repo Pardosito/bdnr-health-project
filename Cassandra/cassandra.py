@@ -87,21 +87,35 @@ def registrar_signo_vital(nombre_paciente, nombre_doctor, tipo_medicion, valor):
 
 
 def registrar_receta_por_visita(nombre_paciente, nombre_doctor, receta):
-  paciente = get_paciente_id(nombre_paciente)
-  doctor = get_doctor_id(nombre_doctor)
-  visita = get_visita_activa(session, paciente)
+    paciente = get_paciente_id(nombre_paciente)
+    doctor = get_doctor_id(nombre_doctor)
 
-  if not visita:
-    return f"El paciente {nombre_paciente} no tiene visitas activas"
-  if not receta:
-    return "La receta necesita contenido para ser guardada"
-  receta = receta
-  try:
-    stmt = session.prepare(model.recete_medica_registro_stmt)
-    session.execute(stmt, [str(paciente), str(doctor), str(visita), receta])
-    print(f"Receta por doctor {nombre_doctor} guardada correctamente")
-  except Exception as e:
-    print(f"Error guardando receta: {e}")
+    if not paciente or not doctor:
+        print("Error: Paciente o Doctor no encontrado.")
+        return
+
+    visita = get_visita_activa(session, paciente)
+
+    if not visita:
+        print(f"El paciente {nombre_paciente} no tiene visitas activas")
+        return
+    if not receta:
+        print("La receta necesita contenido para ser guardada")
+        return
+
+    try:
+        stmt = session.prepare(model.recete_medica_registro_stmt)
+        session.execute(stmt, [str(paciente), str(doctor), str(visita), receta, uuid.uuid1()])
+        print(f"Receta por doctor {nombre_doctor} guardada correctamente.")
+
+        expedientes.update_one(
+            {"paciente_id": ObjectId(paciente)},
+            {"$addToSet": {"tratamientos": receta}}
+        )
+        print("+")
+
+    except Exception as e:
+        print(f"Error guardando receta: {e}")
 
 def registrar_diagnostico_por_visita(nombre_doctor, nombre_paciente, diagnostico):
     doc_id = get_doctor_id(nombre_doctor)
@@ -197,7 +211,7 @@ def verificar_disponibilidad_doctor(nombre_doctor, fecha): #Se le debe pasar feh
     stmt = session.prepare(model.SELECT_DISPONIBILIDAD_DOCTOR)
     rows = session.execute(stmt, [fecha, str(doctor)])
     for row in rows:
-      print(f"DOCTOR: {get_doctor_by_id(row.doctor_id)}   PACIENTE: {get_paciente_by_id(row.paciente_id)}   TIPO_VISITA: {row.tipo_visita}  FEHCHA: {row.fecha}")
+      print(f"DOCTOR: {get_doctor_by_id(row.doctor_id)['nombre']}   PACIENTE: {get_paciente_by_id(row.paciente_id)['nombre']}   TIPO_VISITA: {row.tipo_visita}  FEHCHA: {row.fecha}")
   except Exception as e:
     print(f"Error obteniendo disponibilidad: {e}")
 

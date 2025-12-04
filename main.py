@@ -143,7 +143,7 @@ def submenu_mongo():
                 print(buckets_por_edad(diag))
 
             case 12:
-                nombre = input("Nombre del paciente")
+                nombre = input("Nombre del paciente: ")
                 doc = input("Nombre del doctor: ")
                 tratamiento = input("Tratamiento: ")
                 agregar_tratamiento(nombre, doc, tratamiento)

@@ -1,20 +1,16 @@
 from Mongo.mongo import expedientes
+from Mongo.utils import get_paciente_id
 from bson import ObjectId
 
 
 #crear expediente
-def crear_expediente(paciente_id: str) -> dict:
+def crear_expediente(nombre: str) -> dict:
     """Crea un expediente vacío para un paciente."""
 
-    if not ObjectId.is_valid(paciente_id):
-        return {"error": "ID de paciente inválido."}
-
-    paciente_id = ObjectId(paciente_id)
-
-    # Verificar si ya existe
+    paciente_id = get_paciente_id(nombre)
     existente = expedientes.find_one({"paciente_id": paciente_id})
     if existente:
-        return {"mensaje": "El paciente ya tiene expediente."}
+        return "El paciente ya tiene expediente."
 
     data = {
         "paciente_id": paciente_id,
@@ -24,8 +20,7 @@ def crear_expediente(paciente_id: str) -> dict:
     }
 
     expedientes.insert_one(data)
-    return {"mensaje": "Expediente creado correctamente."}
-
+    return "Expediente creado correctamente."
 
 
 #obtener expediente
@@ -35,7 +30,7 @@ def obtener_expediente(paciente_id: str):
     if not ObjectId.is_valid(paciente_id):
         return {"error": "ID de paciente inválido."}
 
-    exp = expedientes.find_one({"paciente_id": ObjectId(paciente_id)})
+    exp = expedientes.find_one({"paciente_id": paciente_id})
 
     if not exp:
         return {"mensaje": "El paciente no tiene expediente."}
@@ -55,7 +50,7 @@ def agregar_alergia(paciente_id: str, alergia: str):
     if not ObjectId.is_valid(paciente_id):
         return {"error": "ID inválido."}
 
-    exp = expedientes.find_one({"paciente_id": ObjectId(paciente_id)})
+    exp = expedientes.find_one({"paciente_id": paciente_id})
 
     if not exp:
         return {"error": "El paciente no tiene expediente."}
@@ -70,23 +65,23 @@ def agregar_alergia(paciente_id: str, alergia: str):
 
 
 #agregar padecimiento
-def agregar_padecimiento(paciente_id: str, diagnostico: str):
+def agregar_padecimiento(nombre: str, diagnostico: str):
     """Agrega un diagnóstico/padecimiento al expediente."""
 
-    if not ObjectId.is_valid(paciente_id):
-        return {"error": "ID inválido."}
+    paciente_id = get_paciente_id(nombre)
+    if not paciente_id:
+        return f"Error: No se encontró ningún paciente"
 
-    exp = expedientes.find_one({"paciente_id": ObjectId(paciente_id)})
+    exp = expedientes.find_one({"paciente_id": paciente_id})
     if not exp:
-        return {"error": "El paciente no tiene expediente."}
+        return "El paciente no tiene expediente."
 
     expedientes.update_one(
-        {"paciente_id": ObjectId(paciente_id)},
+        {"paciente_id": paciente_id},
         {"$push": {"padecimientos": diagnostico}}
     )
 
-    return {"mensaje": "Padecimiento agregado."}
-
+    return "Padecimiento agregado."
 
 
 #agregar tratamiento
@@ -96,7 +91,7 @@ def agregar_tratamiento(paciente_id: str, tratamiento: str):
     if not ObjectId.is_valid(paciente_id):
         return {"error": "ID inválido."}
 
-    exp = expedientes.find_one({"paciente_id": ObjectId(paciente_id)})
+    exp = expedientes.find_one({"paciente_id": paciente_id})
     if not exp:
         return {"error": "El paciente no tiene expediente."}
 

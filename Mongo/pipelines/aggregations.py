@@ -14,7 +14,8 @@ def _calcular_edad(fecha_nac_str):
 # Edad promedio + frecuencia de medicamentos
 def edad_promedio_y_meds(diagnostico: str):
     pipeline = [
-        # unimos expediente + paciente
+        {"$match": {"padecimientos": diagnostico}},
+
         {"$lookup": {
             "from": "pacientes",
             "localField": "paciente_id",
@@ -23,13 +24,13 @@ def edad_promedio_y_meds(diagnostico: str):
         }},
         {"$unwind": "$paciente"},
 
-        # Convertir fecha_nac a edad
         {"$addFields": {
             "edad": {
                 "$function": {
                     "body": """
                     function(fecha_nac) {
                         try {
+                            if (!fecha_nac) return null;
                             let fn = new Date(fecha_nac);
                             let hoy = new Date();
                             let edad = hoy.getFullYear() - fn.getFullYear();
@@ -44,36 +45,33 @@ def edad_promedio_y_meds(diagnostico: str):
                     "args": ["$paciente.fecha_nac"],
                     "lang": "js"
                 }
+            },
+            "cantidad_medicamentos": {
+                "$cond": {
+                    "if": {"$isArray": "$tratamientos"},
+                    "then": {"$size": "$tratamientos"},
+                    "else": 0
+                }
             }
         }},
 
-        # separar padecimientos
-        {"$unwind": "$padecimientos"},
-
-        # solo el diasgnostico buscado
-        {"$match": {"padecimientos": diagnostico}},
-
-        # si existen multiples tratamientos los separa
-        {"$unwind": {
-            "path": "$tratamientos",
-            "preserveNullAndEmptyArrays": True
-        }},
-
-        # agrupar
         {"$group": {
-            "_id": "$padecimientos",
+            "_id": None,
+            "diagnostico": {"$first": diagnostico},
             "edad_promedio": {"$avg": "$edad"},
-            "frecuencia_medicamentos": {"$sum": 1}
+            "promedio_tratamientos_por_paciente": {"$avg": "$cantidad_medicamentos"}
         }}
     ]
 
     return list(expedientes.aggregate(pipeline))
 
 
-# Requerimiento 10
-# Bucket de edades por diagnóstico
+    # Requerimiento 10
+    # Bucket de edades por diagnóstico
 def buckets_por_edad(diagnostico: str):
     pipeline = [
+        {"$match": {"padecimientos": diagnostico}},
+
         {"$lookup": {
             "from": "pacientes",
             "localField": "paciente_id",
@@ -82,13 +80,13 @@ def buckets_por_edad(diagnostico: str):
         }},
         {"$unwind": "$paciente"},
 
-        # convertir fecha_nac a edad
         {"$addFields": {
             "edad": {
                 "$function": {
                     "body": """
                     function(fecha_nac) {
                         try {
+                            if (!fecha_nac) return -1; // Retorna -1 si no hay fecha
                             let fn = new Date(fecha_nac);
                             let hoy = new Date();
                             let edad = hoy.getFullYear() - fn.getFullYear();
@@ -97,7 +95,7 @@ def buckets_por_edad(diagnostico: str):
                                 edad--;
                             }
                             return edad;
-                        } catch(e) { return null; }
+                        } catch(e) { return -1; }
                     }
                     """,
                     "args": ["$paciente.fecha_nac"],
@@ -106,15 +104,12 @@ def buckets_por_edad(diagnostico: str):
             }
         }},
 
-        {"$unwind": "$padecimientos"},
+        {"$match": {"edad": {"$gte": 0}}},
 
-        {"$match": {"padecimientos": diagnostico}},
-
-        # bucke ice challenge
         {"$bucket": {
             "groupBy": "$edad",
             "boundaries": [0, 18, 30, 45, 60, 150],
-            "default": "Fuera de rango",
+            "default": "Otros",
             "output": {"total": {"$sum": 1}}
         }}
     ]

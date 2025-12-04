@@ -54,7 +54,7 @@ def obtener_paciente_y_expediente(id_o_nombre: str):
         expediente["_id"] = str(expediente["_id"])
         expediente["paciente_id"] = str(expediente["paciente_id"])
 
-    return {"paciente": paciente, "expediente": expediente}
+    return print(f"NOMBRE: {paciente['nombre']}, FECHA_NAC: {paciente['fecha_nac']}, SEXO: {paciente['sexo']}, TELEFONO: {paciente['telefono']}, CORREO: {paciente['correo']}, CONTACTO EMERGENCIA: {paciente['cont_eme']}, DIRECCION: {paciente['direccion']}, SEGURO: {paciente['seguro']}, POLIZA: {paciente['poliza']} \nEXPEDIENTE\nALERGIAS: {expediente['alergias']}, PADECIMIENTOS: {expediente['padecimientos']}, TRATAMIENTOS: {expediente['tratamientos']}")
 
 
 
@@ -65,16 +65,34 @@ def filtrar_pacientes(filtros: dict):
     resultados = []
 
     for p in pacientes.find(filtros):
-        p["_id"] = str(p["_id"])
+        p_id_obj = str(p["_id"])
+        print(f"Buscando expediente para Paciente ID: {p_id_obj} (Tipo: {type(p_id_obj)})")
         exp = expedientes.find_one({"paciente_id": ObjectId(p["_id"])})
 
-        if exp:
-            exp["_id"] = str(exp["_id"])
-            exp["paciente_id"] = str(exp["paciente_id"])
+        if exp is None:
+            print("❌ No se encontró expediente (Revisa si en Mongo 'paciente_id' es String o ObjectId)")
+        else:
+            print("✅ Expediente encontrado")
 
         resultados.append({"paciente": p, "expediente": exp})
 
-    return resultados
+    for item in resultados:
+        pac = item["paciente"]
+        exp = item["expediente"]
+
+        alergias = exp["alergias"] if exp else "N/A"
+        padeci = exp["padecimientos"] if exp else "N/A"
+        trata = exp["tratamientos"] if exp else "N/A"
+
+        print(
+            f"NOMBRE: {pac['nombre']}, FECHA_NAC: {pac['fecha_nac']}, SEXO: {pac['sexo']}, "
+            f"TELEFONO: {pac['telefono']}, CORREO: {pac['correo']}, "
+            f"CONTACTO EMERGENCIA: {pac['cont_eme']}, DIRECCION: {pac['direccion']}, "
+            f"SEGURO: {pac['seguro']}, POLIZA: {pac['poliza']}\n"
+            f"EXPEDIENTE\n"
+            f"ALERGIAS: {alergias}, PADECIMIENTOS: {padeci}, TRATAMIENTOS: {trata}\n"
+            f"{'-'*50}"
+        )
 
 
 
@@ -82,16 +100,17 @@ def filtrar_pacientes(filtros: dict):
 def obtener_info_medica(id_o_nombre: str):
     """Devuelve solo lo clínico: alergias, padecimientos, tratamientos."""
 
-    datos = obtener_paciente_y_expediente(id_o_nombre)
+    paciente_id = get_paciente_id(id_o_nombre)
+    if not paciente_id:
+        return "Paciente no encontrado"
 
-    if "error" in datos:
-        return datos
+    expediente = expedientes.find_one({"paciente_id": paciente_id})
+    if not expediente:
+        return "Paciente no tiene expediente creado"
 
-    paciente = datos["paciente"]
-    expediente = datos["expediente"]
+    paciente = buscar_paciente_por_id(paciente_id)
 
     return {
-        "nombre": paciente["nombre"],
         "alergias": expediente["alergias"] if expediente else [],
         "padecimientos": expediente["padecimientos"] if expediente else [],
         "tratamientos": expediente["tratamientos"] if expediente else []

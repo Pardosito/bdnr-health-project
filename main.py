@@ -106,8 +106,8 @@ def submenu_mongo():
                 print("ID generado:", registrar_paciente(data))
 
             case 5:
-                pid = input("ID del paciente: ")
-                print(crear_expediente(pid))
+                nombre = input("Nombre del paciente: ")
+                print(crear_expediente(nombre))
 
             case 6:
                 nombre = input("Nombre o ID: ")
@@ -125,9 +125,9 @@ def submenu_mongo():
                 print(obtener_info_medica(nombre))
 
             case 9:
-                pid = input("ID paciente: ")
+                nombre = input("Nombre del paciente: ")
                 pade = input("Padecimiento: ")
-                print(agregar_padecimiento(pid, pade))
+                print(agregar_padecimiento(nombre, pade))
 
             case 10:
                 diag = input("Padecimiento: ")

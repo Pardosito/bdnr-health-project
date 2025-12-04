@@ -275,7 +275,7 @@ def submenu_dgraph(dgraph):
                 print(analizar_red_doctor(dgraph, did))
 
             case 6:
-                umbral = input("Umbral (default 3): ")
+                umbral = input("Número de medicamentos simultáneos (default 3): ")
                 umbral_val = int(umbral) if umbral else 3
                 print(pacientes_polifarmacia(dgraph, umbral_val))
 

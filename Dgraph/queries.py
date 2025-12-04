@@ -4,13 +4,8 @@ from collections import Counter, defaultdict
 
 # 1. Medicamentos recetados juntos para una condición
 def meds_recetados_juntos(client, nombre_condicion):
-    """
-    Identifica qué medicamentos suelen ser recetados juntos para tratar una condición específica.
-    Ruta: Condicion <- para - Tratamiento - incluye -> Medicamento
-    """
     import re
 
-    # Helpers: procesar el bloque 'data' y extraer listas de medicamentos por tratamiento
     def _extract_meds_from_data(d):
         meds_list = []
         if not d:
@@ -20,9 +15,10 @@ def meds_recetados_juntos(client, nombre_condicion):
             meds = [m.get('nombre') for m in tratamiento.get('incluye', []) if m.get('nombre')]
             if meds:
                 meds_list.append(meds)
-        return meds_list
+        for med in meds_list:
+          for m in med:
+            print(f"MEDICAMENTO: {m}")
 
-    # 1) si el input parece un UID de Dgraph (ej. '0x1'), consultamos por uid
     uid_match = False
     if isinstance(nombre_condicion, str) and re.match(r"^0x[0-9a-fA-F]+$", nombre_condicion.strip()):
         uid_match = True
@@ -38,10 +34,8 @@ def meds_recetados_juntos(client, nombre_condicion):
             data = json.loads(res.json)
             return _extract_meds_from_data(data.get('data'))
         except Exception:
-            # si falla el uid lookup continuamos con otros métodos
             pass
 
-    # 2) Búsqueda exacta por nombre (eq)
     query_eq = """query q($cond: string) {
       data(func: eq(nombre, $cond)) {
         uid
@@ -56,11 +50,8 @@ def meds_recetados_juntos(client, nombre_condicion):
         if meds:
             return meds
     except Exception:
-        # No abortamos, probamos siguiente estrategia
         pass
 
-    # 3) Fallback: búsqueda por regexp case-insensitive sobre el nombre
-    # Escapamos la entrada para evitar que caracteres especiales rompan la regex
     try:
         pat = '(?i)' + re.escape(nombre_condicion)
         query_re = """query q($re: string) {
@@ -74,7 +65,7 @@ def meds_recetados_juntos(client, nombre_condicion):
         data = json.loads(res.json)
         return _extract_meds_from_data(data.get('data'))
     except Exception:
-        return []
+        return
 
 
 # 2. Sugerir segunda opinión
@@ -166,7 +157,11 @@ def detectar_conflictos_tratamiento(client, paciente_id):
         if med_nombre in alergias:
             alertas.append(f"ALERGIA: El paciente está tomando {med_nombre} y es alérgico.")
 
-    return alertas if alertas else "No se detectaron conflictos."
+    if not alertas:
+      return "No se detectaron conflictos."
+
+    for alerta in alertas:
+      print(alerta)
 
 
 # 4. Pacientes polifarmacia (muchos tratamientos/medicamentos)
@@ -183,12 +178,13 @@ def pacientes_polifarmacia(client, umbral=3):
     data = json.loads(res.json)
 
     resultado = []
-    for p in data['pacientes']:
-        count = p.get('count(recibe)', 0)
+    for p in data.get("pacientes", []):
+        count = p.get("count(recibe)", 0)
         if count >= umbral:
             resultado.append({"nombre": p['nombre'], "tratamientos": count})
 
-    return resultado
+    for item in resultado:
+        print(f"PACIENTE: {item['nombre']}, TRATAMIENTOS: {item['tratamientos']}")
 
 
 # 5. Analizar propagación de diagnóstico contagioso
@@ -218,7 +214,7 @@ def analizar_propagacion_contagiosa(client):
 
     res = client.txn(read_only=True).query(query)
     data = json.loads(res.json)
-    riesgo = data.get('pacientes_riesgo', [])
+    riesgo = data.get("pacientes_riesgo", [])
     for doctor in riesgo:
       print(f"DOCTOR: {doctor['nombre_doctor']}")
       pacientes = doctor["pacientes_expuestos"]
@@ -229,12 +225,6 @@ def analizar_propagacion_contagiosa(client):
 
 # 6. Detectar sobredosis (mismo med, múltiples doctores)
 def detectar_sobredosis(client):
-    """
-    Identifica pacientes que reciben el MISMO medicamento prescrito por DIFERENTES doctores.
-    """
-    # Ajustamos la consulta para obtener, desde cada Tratamiento, los doctores
-    # que lo prescriben usando la reverse-edge ~prescribe. También traemos
-    # los medicamentos que incluye cada tratamiento.
     query = """query q() {
       pacientes(func: type(Paciente)) {
         nombre
@@ -252,11 +242,9 @@ def detectar_sobredosis(client):
     alertas = []
 
     for p in data.get('pacientes', []):
-        # Mapear Medicamento -> Set de Doctores
         med_docs_map = defaultdict(set)
 
         for trat in p.get('recibe', []):
-            # algunos grafos podrían usar nombres distintos, aceptamos ambas claves
             docs = trat.get('recetado_por', []) or trat.get('~prescribe', [])
             meds = trat.get('incluye', [])
 
@@ -265,7 +253,6 @@ def detectar_sobredosis(client):
             for m in meds:
                 med_docs_map[m['nombre']].add(nombre_doc)
 
-        # Verificar si algún medicamento tiene > 1 doctor distinto
         for med, doctores in med_docs_map.items():
             if len(doctores) > 1:
                 alertas.append({
@@ -274,7 +261,8 @@ def detectar_sobredosis(client):
                     "doctores_involucrados": list(doctores)
                 })
 
-    return alertas
+    for alerta in alertas:
+      print(f"PACIENTE: {alerta['paciente']}, MEDICAMENTO: {alerta['medicamento']}, DOCTORES: {alerta['doctores_involucrados']}")
 
 
 # 7. Red de doctores (co-tratamientos)
@@ -299,14 +287,16 @@ def analizar_red_doctor(client, doctor_id):
 
     colecciones = Counter()
 
-    if data['doctor']:
+    if data.get('doctor'):
         root_doc = data['doctor'][0]['nombre']
         for pac in data['doctor'][0].get('atiende', []):
             for colega in pac.get('~atiende', []):
                 if colega['nombre'] != root_doc:
                     colecciones[colega['nombre']] += 1
 
-    return dict(colecciones)
+    for doctor, cantidad in colecciones.items():
+        print(f"DOCTOR: {doctor}, PACIENTES: {cantidad}")
+
 
 
 # 8 y 9. Frecuencias por Especialidad
@@ -339,7 +329,8 @@ def padecimientos_por_especialidad(client):
 
         reporte[esp['nombre']] = condiciones_counter.most_common(5)
 
-    return reporte
+    for especialidad, count in reporte.items():
+      print(f"ESPECIALIDAD: {especialidad}, TOTAL: {count}")
 
 def relacionar_doctor_tratamiento(client, doctor_uid, tratamiento_uid):
     txn = client.txn()

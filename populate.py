@@ -27,7 +27,9 @@ MEDICAMENTOS = [
     {"nombre": "Losartán", "dosis": "50mg"},
     {"nombre": "Salbutamol", "dosis": "100mcg"},
     {"nombre": "Amoxicilina", "dosis": "500mg"},
-    {"nombre": "Vitaminas", "dosis": "1p/día"}
+    {"nombre": "Vitaminas", "dosis": "1p/día"},
+    {"nombre": "Omeprazol", "dosis": "20mg"},
+    {"nombre": "Loratadina", "dosis": "10mg"}
 ]
 
 # --- HELPERS PARA RELACIONES DGRAPH ---
@@ -67,52 +69,60 @@ def relacionar_paciente_alergia(client, paciente_uid, medicamento_uid):
 def poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, mapa_cond):
     print("\n=== DGRAPH - Creando Escenarios de Prueba ===")
 
-    # 1. ESCENARIO: INTERACCIÓN Y CONFLICTOS (Losartán <-> Ibuprofeno)
+    # ----------------------------------------------------
+    # ESCENARIO 0: MEDICAMENTOS RECETADOS JUNTOS (QUERY 2)
+    # Crear un tratamiento que tenga 3 medicamentos específicos para una condición
+    # ----------------------------------------------------
+    cond_asma_uid = mapa_cond["Asma"]["dgraph_uid"]
+    t_combo = dg_utils.crear_tratamiento(dgraph, "Combo Asma Severo", "15 días")
 
-    # Crear la interacción real en el grafo
+    # Asignamos 3 medicamentos al mismo tratamiento
+    dg_utils.relacionar_tratamiento_medicamento(dgraph, t_combo, mapa_med["Salbutamol"]["dgraph_uid"])
+    dg_utils.relacionar_tratamiento_medicamento(dgraph, t_combo, mapa_med["Loratadina"]["dgraph_uid"])
+    dg_utils.relacionar_tratamiento_medicamento(dgraph, t_combo, mapa_med["Vitaminas"]["dgraph_uid"])
+
+    relacionar_tratamiento_condicion(dgraph, t_combo, cond_asma_uid)
+    print(f"💊 Combo creado para Query 'Meds recetados juntos': Salbutamol + Loratadina + Vitaminas (para Asma)")
+
+
+    # ----------------------------------------------------
+    # ESCENARIO 1: INTERACCIÓN Y CONFLICTOS (Losartán <-> Ibuprofeno) (QUERY 4)
+    # ----------------------------------------------------
     med_A_uid = mapa_med["Losartán"]["dgraph_uid"]
     med_B_uid = mapa_med["Ibuprofeno"]["dgraph_uid"]
     dg_utils.crear_interaccion(dgraph, med_A_uid, med_B_uid)
     print("💊 Interacción Losartán <-> Ibuprofeno creada.")
 
-    # Seleccionar un paciente aleatorio
     paciente_conflicto = random.choice(lista_pacientes)
     doc_conflicto = random.choice(lista_doctores)
 
-    # A) Forzar Alergia al Medicamento A (Losartán)
+    # A) Forzar Alergia
     relacionar_paciente_alergia(dgraph, paciente_conflicto["dgraph_uid"], med_A_uid)
-    # Registrar alergia en Mongo (para ser consistente)
     agregar_alergia(paciente_conflicto["_id"], "Losartán")
 
-    # B) Crear un Tratamiento que incluya ambos medicamentos interactuantes/alergénicos
+    # B) Crear Tratamiento con conflicto
     t_conflicto = dg_utils.crear_tratamiento(dgraph, "Trat. Conflicto Aleatorio", "30 días")
     dg_utils.relacionar_tratamiento_medicamento(dgraph, t_conflicto, med_A_uid)
     dg_utils.relacionar_tratamiento_medicamento(dgraph, t_conflicto, med_B_uid)
 
-    # C) Relacionar al paciente con el tratamiento y doctor
     dg_utils.relacionar_paciente_tratamiento(dgraph, paciente_conflicto["dgraph_uid"], t_conflicto)
     relacionar_doctor_tratamiento(dgraph, doc_conflicto["dgraph_uid"], t_conflicto)
-    print(f"⚠ Conflicto de tratamiento y alergia forzado para: {paciente_conflicto['nombre']}")
+    print(f"⚠ Conflicto forzado para: {paciente_conflicto['nombre']}")
 
     # ----------------------------------------------------
+    # ESCENARIO 2: SOBREDOSIS (Mismo Med, 2 Doctores) (QUERY 7)
+    # ----------------------------------------------------
+    paciente_sobredosis = random.choice([p for p in lista_pacientes if p != paciente_conflicto])
 
-    # 2. ESCENARIO: SOBREDOSIS (Mismo Med, 2 Doctores, 1 Paciente)
-
-    paciente_sobredosis = random.choice(lista_pacientes)
-    while paciente_sobredosis == paciente_conflicto:
-         paciente_sobredosis = random.choice(lista_pacientes)
-
-    doc_sobredosis_A = random.choice(lista_doctores)
-    doc_sobredosis_B = random.choice([d for d in lista_doctores if d != doc_sobredosis_A])
+    doc_sobredosis_A = lista_doctores[0]
+    doc_sobredosis_B = lista_doctores[1]
     med_sobredosis = mapa_med["Paracetamol"]["dgraph_uid"]
 
-    # Tratamiento 1
     t_sobre_a = dg_utils.crear_tratamiento(dgraph, "Sobredosis A", "5 días")
     dg_utils.relacionar_tratamiento_medicamento(dgraph, t_sobre_a, med_sobredosis)
     dg_utils.relacionar_paciente_tratamiento(dgraph, paciente_sobredosis["dgraph_uid"], t_sobre_a)
     relacionar_doctor_tratamiento(dgraph, doc_sobredosis_A["dgraph_uid"], t_sobre_a)
 
-    # Tratamiento 2 (Mismo medicamento, distinto doctor)
     t_sobre_b = dg_utils.crear_tratamiento(dgraph, "Sobredosis B", "5 días")
     dg_utils.relacionar_tratamiento_medicamento(dgraph, t_sobre_b, med_sobredosis)
     dg_utils.relacionar_paciente_tratamiento(dgraph, paciente_sobredosis["dgraph_uid"], t_sobre_b)
@@ -120,78 +130,85 @@ def poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, 
     print(f"⚠ Caso Sobredosis forzado para: {paciente_sobredosis['nombre']}")
 
     # ----------------------------------------------------
+    # ESCENARIO 3: SUGERENCIA SEGUNDA OPINIÓN (QUERY 3)
+    # ----------------------------------------------------
+    condicion_segunda = "Cardiología" # Usamos una especialidad como proxy de condición o una condición real
+    cond_nombre = "Hipertensión"
+    cond_uid = mapa_cond[cond_nombre]["dgraph_uid"]
 
-    # 3. ESCENARIO: SUGERENCIA DE SEGUNDA OPINIÓN
+    # Buscamos 2 doctores con la misma especialidad (ej. Cardiología)
+    docs_cardio = [d for d in lista_doctores if d["especialidad"] == "Cardiología"]
 
-    # Obtener una condición aleatoria con su UID
-    condicion_segunda = random.choice([c for c in mapa_cond.keys() if c != "Gripe"])
-    cond_uid = mapa_cond[condicion_segunda]["dgraph_uid"]
+    if len(docs_cardio) >= 2:
+        doc_actual = docs_cardio[0]
+        doc_sugerido = docs_cardio[1]
+        paciente_segunda = random.choice(lista_pacientes)
 
-    # Paciente que tiene la condición
-    paciente_segunda = random.choice(lista_pacientes)
-    dg_utils.relacionar_paciente_condicion(dgraph, paciente_segunda["dgraph_uid"], cond_uid)
-    agregar_padecimiento(paciente_segunda["nombre"], condicion_segunda, random.choice(lista_doctores)['nombre']) # para Mongo
+        # Paciente diagnosticado y atendido por Doc A
+        dg_utils.relacionar_paciente_condicion(dgraph, paciente_segunda["dgraph_uid"], cond_uid)
+        dg_utils.relacionar_doctor_atiende(dgraph, doc_actual["dgraph_uid"], paciente_segunda["dgraph_uid"])
 
-    # Doctor A (el que lo atiende actualmente)
-    doc_actual = random.choice(lista_doctores)
-    dg_utils.relacionar_doctor_atiende(dgraph, doc_actual["dgraph_uid"], paciente_segunda["dgraph_uid"])
-
-    # Doctor B (el que será sugerido) - Debe tener la misma especialidad pero ser distinto
-    especialidad_cond = doc_actual['especialidad']
-    doc_sugerencia_candidato = [d for d in lista_doctores if d["especialidad"] == especialidad_cond and d != doc_actual]
-
-    if doc_sugerencia_candidato:
-        doc_sugerencia = random.choice(doc_sugerencia_candidato)
-        # Crear Tratamiento del Doctor B para esa Condición
-        t_sugerencia = dg_utils.crear_tratamiento(dgraph, f"Trat. Sugerencia {condicion_segunda}", "90 días")
+        # Doc B prescribe tratamiento para esa misma condición (lo hace elegible para sugerencia)
+        t_sugerencia = dg_utils.crear_tratamiento(dgraph, "Control Experto Presión", "Permanent")
         relacionar_tratamiento_condicion(dgraph, t_sugerencia, cond_uid)
-        relacionar_doctor_tratamiento(dgraph, doc_sugerencia["dgraph_uid"], t_sugerencia)
-        print(f"💡 Sugerencia forzada para: {paciente_segunda['nombre']} (Condición: {condicion_segunda})")
-    else:
-        print("Faltan doctores con la misma especialidad para crear la sugerencia.")
+        relacionar_doctor_tratamiento(dgraph, doc_sugerido["dgraph_uid"], t_sugerencia)
+
+        print(f"💡 Sugerencia preparada: {paciente_segunda['nombre']} atendido por {doc_actual['nombre']}, se sugerirá {doc_sugerido['nombre']}")
 
     # ----------------------------------------------------
-
-    # 4. ESCENARIO: PROPAGACIÓN CONTAGIOSA
-
-    # Condición contagiosa (Gripe)
+    # ESCENARIO 4: PROPAGACIÓN CONTAGIOSA (QUERY 1)
+    # ----------------------------------------------------
     cond_contagiosa_uid = mapa_cond["Gripe"]["dgraph_uid"]
-
-    # Doctor que trata la Gripe
     doc_contagioso = random.choice(lista_doctores)
 
-    # Tratamiento para la Gripe
-    t_contagioso = dg_utils.crear_tratamiento(dgraph, "Trat. Contagioso", "7 días")
+    # Doctor prescribe para Gripe
+    t_contagioso = dg_utils.crear_tratamiento(dgraph, "Trat. Antigripal", "7 días")
     relacionar_tratamiento_condicion(dgraph, t_contagioso, cond_contagiosa_uid)
     relacionar_doctor_tratamiento(dgraph, doc_contagioso["dgraph_uid"], t_contagioso)
 
-    # Paciente Contagiado
+    # Paciente Enfermo
     paciente_contagiado = random.choice(lista_pacientes)
     dg_utils.relacionar_paciente_condicion(dgraph, paciente_contagiado["dgraph_uid"], cond_contagiosa_uid)
-    agregar_padecimiento(paciente_contagiado["nombre"], "Gripe", doc_contagioso['nombre']) # para Mongo
+    dg_utils.relacionar_doctor_atiende(dgraph, doc_contagioso["dgraph_uid"], paciente_contagiado["dgraph_uid"]) # Importante: el doctor lo atiende
 
-    # Paciente en Riesgo (atendido por el mismo doctor, pero no tiene la condición)
+    # Paciente Sano (En riesgo porque lo atiende el mismo doctor)
     paciente_riesgo = random.choice([p for p in lista_pacientes if p != paciente_contagiado])
     dg_utils.relacionar_doctor_atiende(dgraph, doc_contagioso["dgraph_uid"], paciente_riesgo["dgraph_uid"])
-    print(f"🦠 Propagación forzada: {paciente_riesgo['nombre']} en riesgo (por {doc_contagioso['nombre']})")
+
+    print(f"🦠 Propagación: {doc_contagioso['nombre']} atiende a {paciente_contagiado['nombre']} (Enfermo) y a {paciente_riesgo['nombre']} (Riesgo).")
 
     # ----------------------------------------------------
-
-    # 5. ESCENARIO: POLIFARMACIA (Umbral=3)
-
+    # ESCENARIO 5: POLIFARMACIA (QUERY 6)
+    # ----------------------------------------------------
     paciente_poli = random.choice(lista_pacientes)
-
-    for i in range(3):
-        t_poli = dg_utils.crear_tratamiento(dgraph, f"Trat. Poli {i}", "Vario")
-        doc_poli = random.choice(lista_doctores)
+    for i in range(4): # 4 tratamientos > umbral 3
+        t_poli = dg_utils.crear_tratamiento(dgraph, f"Trat. Extra {i}", "Vario")
         dg_utils.relacionar_paciente_tratamiento(dgraph, paciente_poli["dgraph_uid"], t_poli)
-        relacionar_doctor_tratamiento(dgraph, doc_poli["dgraph_uid"], t_poli)
+    print(f"📈 Polifarmacia forzada para: {paciente_poli['nombre']}")
 
-    print(f"📈 Polifarmacia forzada para: {paciente_poli['nombre']} (3 tratamientos)")
+    # ----------------------------------------------------
+    # ESCENARIO 6: RED DE DOCTORES (QUERY 5)
+    # Crear un doctor central y dos colegas que comparten pacientes con él
+    # ----------------------------------------------------
+    doc_central = lista_doctores[0]
+    doc_colega1 = lista_doctores[1]
+    doc_colega2 = lista_doctores[2]
+
+    p_shared_1 = lista_pacientes[0]
+    p_shared_2 = lista_pacientes[1]
+
+    # Central y Colega 1 atienden a P1
+    dg_utils.relacionar_doctor_atiende(dgraph, doc_central["dgraph_uid"], p_shared_1["dgraph_uid"])
+    dg_utils.relacionar_doctor_atiende(dgraph, doc_colega1["dgraph_uid"], p_shared_1["dgraph_uid"])
+
+    # Central y Colega 2 atienden a P2
+    dg_utils.relacionar_doctor_atiende(dgraph, doc_central["dgraph_uid"], p_shared_2["dgraph_uid"])
+    dg_utils.relacionar_doctor_atiende(dgraph, doc_colega2["dgraph_uid"], p_shared_2["dgraph_uid"])
+
+    print(f"🕸 Red Doctor: {doc_central['nombre']} comparte pacientes con {doc_colega1['nombre']} y {doc_colega2['nombre']}.")
 
 
 def poblar_todo():
-    # ... (código de conexión y reseteo) ...
     mongo = get_mongo()
     cassandra = get_cassandra()
     dgraph = get_dgraph()
@@ -207,20 +224,29 @@ def poblar_todo():
         dg_utils.set_schema()
 
     # ==========================================================
-    # 1. MONDONGO (Población Base Aleatoria)
+    # 1. MONDONGO y ESTRUCTURA BASE
     # ==========================================================
-    print("\n=== MONGO - Población Base ===")
+    print("\n=== MONGO & DGRAPH BASE ===")
 
     lista_doctores = []
     lista_pacientes = []
+
+    # Mapas para guardar los UIDs de dgraph y reutilizarlos
+    mapa_especialidades_uid = {}
     mapa_cond = {}
     mapa_med = {}
 
-    # Doctores
+    # 1. Crear Nodos de Especialidad en Dgraph (NECESARIO PARA QUERY 8)
+    if dgraph:
+        for esp_nombre in ESPECIALIDADES:
+            uid = dg_utils.crear_especialidad(dgraph, esp_nombre)
+            mapa_especialidades_uid[esp_nombre] = uid
+
+    # 2. Doctores
     for esp in ESPECIALIDADES:
-        for _ in range(random.randint(1, 3)):
-            doc = {
-                "nombre": "Dr. " + fake.name(),
+        for _ in range(random.randint(1, 2)):
+            doc_data = {
+                "nombre": "Dr. " + fake.first_name() + " " + fake.last_name(),
                 "especialidad": esp,
                 "subespecialidad": "N/A",
                 "cedula": str(fake.random_number(digits=8)),
@@ -228,21 +254,21 @@ def poblar_todo():
                 "correo": fake.email(),
                 "consultorio": str(random.randint(100, 500))
             }
-            doc_id = registrar_doctor(doc)
+            # Mongo
+            doc_id = registrar_doctor(doc_data)
 
-            # Crear en Dgraph
+            # Dgraph
             uid = None
             if dgraph:
-                uid = dg_utils.crear_doctor(dgraph, doc["nombre"], str(doc_id), esp)
+                uid = dg_utils.crear_doctor(dgraph, doc_data["nombre"], str(doc_id), esp)
+                # VINCULAR DOCTOR -> ESPECIALIDAD (CRITICO)
+                if esp in mapa_especialidades_uid:
+                    dg_utils.relacionar_doctor_especialidad(dgraph, uid, mapa_especialidades_uid[esp])
 
-            lista_doctores.append({
-                **doc,
-                "_id": str(doc_id),
-                "dgraph_uid": uid
-            })
+            lista_doctores.append({**doc_data, "_id": str(doc_id), "dgraph_uid": uid})
 
-    # Pacientes
-    for _ in range(30):
+    # 3. Pacientes
+    for _ in range(15):
         pac = {
             "nombre": fake.name(),
             "fecha_nac": fake.date_of_birth(minimum_age=5, maximum_age=90).isoformat(),
@@ -254,35 +280,23 @@ def poblar_todo():
             "seguro": "GNP",
             "poliza": str(fake.random_number(digits=10))
         }
-
         pac_id = registrar_paciente(pac)
         crear_expediente(pac_id)
 
-        # Crear en Dgraph
         uid = None
         if dgraph:
             edad = random.randint(5,90)
             uid = dg_utils.crear_paciente(dgraph, pac["nombre"], str(pac_id), edad, pac["direccion"])
 
-        lista_pacientes.append({
-            **pac,
-            "_id": str(pac_id),
-            "dgraph_uid": uid
-        })
+        lista_pacientes.append({**pac, "_id": str(pac_id), "dgraph_uid": uid})
 
     print(f"🩺 {len(lista_doctores)} Doctores y 🧍 {len(lista_pacientes)} Pacientes creados.")
 
-
-    # ==========================================================
-    # 2. CASSANDRA (Población Mínima)
-    # ==========================================================
+    # 4. Cassandra (Dummy run)
     if cassandra:
-        # ... (Mantener la lógica de Cassandra del archivo original si es necesaria, omitida aquí por brevedad)
-        print("📘 Cassandra poblado con visitas aleatorias.")
+        print("📘 Cassandra inicializado.")
 
-    # ==========================================================
-    # 3. DGRAPH (Condiciones y Medicamentos base + Escenarios)
-    # ==========================================================
+    # 5. DGRAPH - Entidades Base y Escenarios
     if dgraph:
         # Condiciones
         for c in PADECIMIENTOS:
@@ -294,10 +308,10 @@ def poblar_todo():
             uid = dg_utils.crear_medicamento(dgraph, m["nombre"], m["dosis"])
             mapa_med[m["nombre"]] = {"nombre": m["nombre"], "dgraph_uid": uid}
 
-        # Ejecutar la lógica para forzar los escenarios de prueba
+        # EJECUTAR ESCENARIOS COMPLETOS
         poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, mapa_cond)
-        
-    print("\n✨ POBLACIÓN COMPLETADA")
+
+    print("\n✨ POBLACIÓN COMPLETADA - LISTO PARA PROBAR TODOS LOS QUERIES")
 
 
 if __name__ == "__main__":

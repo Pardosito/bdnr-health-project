@@ -311,3 +311,30 @@ def crear_interaccion(client, med1_uid, med2_uid):
         print("Error creando interacción:", e)
     finally:
         txn.discard()
+
+def crear_especialidad(client, nombre):
+    txn = client.txn()
+    try:
+        data = {
+            "uid": "_:esp",
+            "dgraph.type": "Especialidad",
+            "nombre": nombre
+        }
+        res = txn.mutate(set_obj=data)
+        txn.commit()
+        return res.uids.get("esp")
+    except Exception as e:
+        print("Error creando especialidad:", e)
+    finally:
+        txn.discard()
+
+def relacionar_doctor_especialidad(client, doctor_uid, especialidad_uid):
+    txn = client.txn()
+    try:
+        data = {"uid": doctor_uid, "tiene_especialidad": [{"uid": especialidad_uid}]}
+        txn.mutate(set_obj=data)
+        txn.commit()
+    except Exception as e:
+        print("Error relacionando doctor-especialidad:", e)
+    finally:
+        txn.discard()

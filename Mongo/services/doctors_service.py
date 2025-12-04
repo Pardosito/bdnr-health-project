@@ -1,11 +1,32 @@
 from Mongo.mongo import doctores
 from bson import ObjectId
+from connect import get_dgraph
+from Dgraph import dgraph as dg_utils
 
 #reguistro de doctrores
 def registrar_doctor(data: dict) -> str:
-    """Registra un nuevo doctor y regresa su ID."""
     result = doctores.insert_one(data)
-    return str(result.inserted_id)
+    mongo_id = str(result.inserted_id)
+
+    client = get_dgraph()
+    if client:
+        try:
+            doc_uid = dg_utils.crear_doctor(
+                client,
+                data['nombre'],
+                mongo_id,
+                data['especialidad']
+            )
+
+            esp_uid = dg_utils.crear_especialidad(client, data['especialidad'])
+
+            dg_utils.relacionar_doctor_especialidad(client, doc_uid, esp_uid)
+
+            print(f"[Sync]")
+        except Exception as e:
+            print(f"[Sync Error]")
+
+    return mongo_id
 
 
 #búsqueda de doctor por ID

@@ -1,5 +1,6 @@
 from connect import get_dgraph
 import pydgraph
+import json
 
 #schema
 schema = """
@@ -338,3 +339,40 @@ def relacionar_doctor_especialidad(client, doctor_uid, especialidad_uid):
         print("Error relacionando doctor-especialidad:", e)
     finally:
         txn.discard()
+
+def obtener_uid_por_id_mongo(client, mongo_id):
+    query = """query q($mid: string) {
+      nodo(func: eq(id, $mid)) {
+        uid
+      }
+    }"""
+
+    try:
+        res = client.txn(read_only=True).query(query, variables={'$mid': str(mongo_id)})
+        data = json.loads(res.json)
+        if data.get('nodo'):
+            return data['nodo'][0]['uid']
+        return None
+    except Exception as e:
+        print(f"Error buscando UID por Mongo ID: {e}")
+        return None
+
+def obtener_uid_por_id_mongo(client, mongo_id):
+    """
+    Busca el UID de un nodo (Doctor o Paciente) usando el ID de MongoDB almacenado en el predicado 'id'.
+    """
+    query = """query q($mid: string) {
+      nodo(func: eq(id, $mid)) {
+        uid
+      }
+    }"""
+
+    try:
+        res = client.txn(read_only=True).query(query, variables={'$mid': str(mongo_id)})
+        data = json.loads(res.json)
+        if data.get('nodo'):
+            return data['nodo'][0]['uid']
+        return None
+    except Exception as e:
+        print(f"Error buscando UID por Mongo ID: {e}")
+        return None

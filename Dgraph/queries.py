@@ -215,11 +215,11 @@ def analizar_propagacion_contagiosa(client):
     res = client.txn(read_only=True).query(query)
     data = json.loads(res.json)
     riesgo = data.get("pacientes_riesgo", [])
-    for doctor in riesgo:
-      print(f"DOCTOR: {doctor['nombre_doctor']}")
-      pacientes = doctor["pacientes_expuestos"]
-      for paciente in pacientes:
-        print(f"PACIENTE EXPUESTO: {paciente['nombre']}")
+    for item in riesgo:
+        print(f"DOCTOR: {item.get('nombre_doctor')}")
+        pacientes = item.get("pacientes_expuestos", [])
+        for paciente in pacientes:
+            print(f"PACIENTE EXPUESTO: {paciente['nombre']}")
 
 
 

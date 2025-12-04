@@ -1,12 +1,37 @@
 from Mongo.mongo import pacientes, expedientes
 from Mongo.utils import get_paciente_id
 from bson import ObjectId
+from connect import get_dgraph
+from Dgraph import dgraph as dg_utils
+from datetime import datetime
 
-#registrar pacientes
 def registrar_paciente(data: dict) -> str:
-    """Registra un nuevo paciente y devuelve su ID."""
     result = pacientes.insert_one(data)
-    return str(result.inserted_id)
+    mongo_id = str(result.inserted_id)
+
+    client = get_dgraph()
+    if client:
+        try:
+            edad = 0
+            if "fecha_nac" in data:
+                try:
+                    nac = datetime.strptime(data["fecha_nac"], "%Y-%m-%d")
+                    edad = datetime.now().year - nac.year
+                except:
+                    pass
+
+            dg_utils.crear_paciente(
+                client,
+                data['nombre'],
+                mongo_id,
+                edad,
+                data.get('direccion', 'S/D')
+            )
+            print(f"[Sync]")
+        except Exception as e:
+            print(f"[Sync Error] {e}")
+
+    return mongo_id
 
 #buscar pacientes por ID
 def buscar_paciente_por_id(paciente_id: str):

@@ -288,5 +288,26 @@ def cargar_datos_ejemplo():
 
     print("datos cargados.")
 
+def crear_interaccion(client, med1_uid, med2_uid):
+    """
+    Crea una relación bidireccional de interacción entre dos medicamentos.
+    Medicamento1 <--- interactua_con ---> Medicamento2
+    """
+    txn = client.txn()
+    try:
+        txn.mutate(set_obj={
+            "uid": med1_uid,
+            "interactua_con": [{"uid": med2_uid}]
+        })
 
+        txn.mutate(set_obj={
+            "uid": med2_uid,
+            "interactua_con": [{"uid": med1_uid}]
+        })
 
+        txn.commit()
+        print(f"Interacción creada: {med1_uid} <-> {med2_uid}")
+    except Exception as e:
+        print("Error creando interacción:", e)
+    finally:
+        txn.discard()

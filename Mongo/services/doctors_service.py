@@ -31,13 +31,21 @@ def buscar_doctor_por_nombre(nombre: str):
 
 #filtrado de doctores por especialidad
 def buscar_por_especialidad(especialidad: str):
-    """Devuelve solo los campos relevantes para mostrar al usuario."""
+    """Devuelve todos los doctores que coincidan con la especialidad."""
+
     resultados = list(doctores.find(
-        {"especialidad": especialidad},
+        {"especialidad": {"$regex": especialidad, "$options": "i"}}
     ))
 
     if not resultados:
-        return {"mensaje": "No hay doctores con esa especialidad."}
+        return print("No hay doctores con esa especialidad.")
+
+    print(f"--- Encontrados: {len(resultados)} doctores ---")
 
     for doc in resultados:
-        return print(f"NOMBRE: {doc['nombre']}, ESPECIALIDAD: {doc['especialidad']}, SUBESPECIALIDAD: {doc['subespecialidad']}, CEDULA: {doc['cedula']}, TELEFONO: {doc['telefono']}, CORREO: {doc['correo']}, CONSULTORIO: {doc['consultorio']}")
+        print(f"NOMBRE: {doc['nombre']}, ESPECIALIDAD: {doc['especialidad']}, "
+              f"SUBESPECIALIDAD: {doc.get('subespecialidad', 'N/A')}, CEDULA: {doc['cedula']}, "
+              f"TELEFONO: {doc['telefono']}, CORREO: {doc['correo']}, "
+              f"CONSULTORIO: {doc['consultorio']}")
+
+    return

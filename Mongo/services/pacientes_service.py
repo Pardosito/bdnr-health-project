@@ -42,20 +42,43 @@ def buscar_paciente_por_nombre(nombre: str):
 def obtener_paciente_y_expediente(id_o_nombre: str):
     """Devuelve {paciente, expediente} según ID o nombre."""
 
-    # Selección automática según formato
-    buscar_paciente_por_id(id_o_nombre)
-    paciente = get_paciente_id(id_o_nombre)
+    paciente = None
 
-    # Obtener expediente
-    expediente = expedientes.find_one({"paciente_id": ObjectId(paciente["_id"])})
+    if ObjectId.is_valid(id_o_nombre):
+        paciente = pacientes.find_one({"_id": ObjectId(id_o_nombre)})
+    else:
+        paciente = pacientes.find_one({"nombre": {"$regex": id_o_nombre, "$options": "i"}})
 
-    # Convertir ids si existe expediente
+    if not paciente:
+        return "Paciente no encontrado."
+
+    expediente = expedientes.find_one({"paciente_id": paciente["_id"]})
+
+    nombre = paciente.get('nombre', 'N/A')
+    fecha = paciente.get('fecha_nac', 'N/A')
+    sexo = paciente.get('sexo', 'N/A')
+    tel = paciente.get('telefono', 'N/A')
+    correo = paciente.get('correo', 'N/A')
+    eme = paciente.get('cont_eme', 'N/A')
+    dir_ = paciente.get('direccion', 'N/A')
+    seguro = paciente.get('seguro', 'N/A')
+    poliza = paciente.get('poliza', 'N/A')
+
     if expediente:
-        expediente["_id"] = str(expediente["_id"])
-        expediente["paciente_id"] = str(expediente["paciente_id"])
+        alergias = expediente.get('alergias', [])
+        padecimientos = expediente.get('padecimientos', [])
+        tratamientos = expediente.get('tratamientos', [])
+        texto_expediente = f"ALERGIAS: {alergias}, PADECIMIENTOS: {padecimientos}, TRATAMIENTOS: {tratamientos}"
+    else:
+        texto_expediente = "Este paciente no tiene expediente."
 
-    return print(f"NOMBRE: {paciente['nombre']}, FECHA_NAC: {paciente['fecha_nac']}, SEXO: {paciente['sexo']}, TELEFONO: {paciente['telefono']}, CORREO: {paciente['correo']}, CONTACTO EMERGENCIA: {paciente['cont_eme']}, DIRECCION: {paciente['direccion']}, SEGURO: {paciente['seguro']}, POLIZA: {paciente['poliza']} \nEXPEDIENTE\nALERGIAS: {expediente['alergias']}, PADECIMIENTOS: {expediente['padecimientos']}, TRATAMIENTOS: {expediente['tratamientos']}")
-
+    # 5. IMPRIMIR
+    return print(
+        f"NOMBRE: {nombre}, FECHA_NAC: {fecha}, SEXO: {sexo}, TELEFONO: {tel}, "
+        f"CORREO: {correo}, CONTACTO EMERGENCIA: {eme}, DIRECCION: {dir_}, "
+        f"SEGURO: {seguro}, POLIZA: {poliza}\n"
+        f"EXPEDIENTE\n{texto_expediente}"
+    )
 
 
 # filtrar pacientes con cualquier campo

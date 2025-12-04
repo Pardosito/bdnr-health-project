@@ -46,7 +46,7 @@ def poblar_todo():
     cassandra = get_cassandra()
     dgraph = get_dgraph()
 
-    if not mongo:
+    if mongo is None:
         print("❌ Mongo no conectado")
         return
 
@@ -131,23 +131,46 @@ def poblar_todo():
 
         print("🧍 Paciente creado:", mongo_pac)
 
-    # ==========================================================
+   # ==========================================================
     # 2. CASSANDRA
     # ==========================================================
     print("\n=== CASSANDRA ===")
 
     if cassandra:
+        # 1. PREPARAR SENTENCIAS (Fuera del loop)
+        # Esto le enseña a Cassandra a interpretar los '?' correctamente
+        stmt_inicio = cassandra.prepare(model.inicio_visita_stmt)
+        stmt_visita_dia = cassandra.prepare(model.INSERT_VISITA_DEL_DIA)
+
         for pac in lista_pacientes:
             for _ in range(random.randint(1,3)):
                 doc = random.choice(lista_doctores)
                 fecha = fake.date_between(start_date='-4m', end_date='today')
                 visita_id = uuid.uuid1()
 
-                # statements correctos según tu modelo (YA corregido)
-                cassandra.execute(model.inicio_visita_stmt, [pac["_id"], doc["_id"], visita_id, uuid.uuid1()])
-                cassandra.execute(model.INSERT_VISITA_DEL_DIA, [fecha, "Consulta", pac["_id"], doc["_id"], visita_id, uuid.uuid1()])
+                # Generamos timestamp para inicio y fin
+                ts_inicio = uuid.uuid1()
+                ts_fin = uuid.uuid1() # Simulamos que terminó instantes después
 
-        print("📘 Cassandra poblado")
+                # 2. EJECUTAR SENTENCIAS PREPARADAS
+                # Pasamos 'stmt_inicio' en lugar de 'model.inicio_visita_stmt'
+                cassandra.execute(stmt_inicio, [
+                    str(pac["_id"]),   # Aseguramos string
+                    str(doc["_id"]),   # Aseguramos string
+                    ts_inicio,
+                    ts_fin
+                ])
+
+                cassandra.execute(stmt_visita_dia, [
+                    fecha,
+                    "Consulta",
+                    str(pac["_id"]),
+                    str(doc["_id"]),
+                    ts_inicio,
+                    ts_fin
+                ])
+
+        print("📘 Cassandra poblado correctamente")
 
     # ==========================================================
     # 3. DGRAPH → CASOS DE PRUEBA

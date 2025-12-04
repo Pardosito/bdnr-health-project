@@ -4,13 +4,25 @@ from bson import ObjectId
 
 
 #crear expediente
-def crear_expediente(nombre: str) -> dict:
+def crear_expediente(identificador: str) -> dict:
     """Crea un expediente vacío para un paciente."""
 
-    paciente_id = get_paciente_id(nombre)
+    paciente_id = None
+
+    if ObjectId.is_valid(identificador):
+        paciente_id = ObjectId(identificador)
+    else:
+        raw_paciente = get_paciente_id(identificador)
+        if isinstance(raw_paciente, dict):
+            paciente_id = raw_paciente["_id"]
+        elif isinstance(raw_paciente, ObjectId):
+            paciente_id = raw_paciente
+        else:
+             return {"error": f"No se encontró paciente con nombre '{identificador}'"}
+
     existente = expedientes.find_one({"paciente_id": paciente_id})
     if existente:
-        return "El paciente ya tiene expediente."
+        return {"mensaje": "El paciente ya tiene expediente."}
 
     data = {
         "paciente_id": paciente_id,
@@ -20,7 +32,7 @@ def crear_expediente(nombre: str) -> dict:
     }
 
     expedientes.insert_one(data)
-    return "Expediente creado correctamente."
+    return {"mensaje": "Expediente creado correctamente."}
 
 
 #obtener expediente

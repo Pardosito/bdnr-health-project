@@ -28,7 +28,6 @@ CREATE_VISITAS_DEL_DIA = """
     )
 """
 
-# Vamos a usar estos dos indices para poder mejorar query que necesita hacer búsqueda de dicha columna
 CREATE_INDEX_DOCTOR = "CREATE INDEX IF NOT EXISTS idx_visitas_doctor ON visitas_del_dia (doctor_id)"
 CREATE_INDEX_PACIENTE = "CREATE INDEX IF NOT EXISTS idx_visitas_paciente ON visitas_del_dia (paciente_id)"
 
@@ -49,8 +48,8 @@ CREATE_SIGNOS_VITALES_POR_VISITA = """
       visita_id TEXT,
       tipo_medicion TEXT,
       valor TEXT,
-      timestamp TIMEUUID,
-      PRIMARY KEY ((tipo_medicion, paciente_id), timestamp)
+      fecha_registro TIMEUUID,
+      PRIMARY KEY ((tipo_medicion, paciente_id), fecha_registro)
     )
 """
 
@@ -61,6 +60,7 @@ CREATE_DIAGNOSTICOS_POR_VISITA = """
       visita_id TEXT,
       diagnostico TEXT,
       fecha DATE,
+      momento_registro TIMEUUID,
       PRIMARY KEY ((doctor_id), paciente_id, fecha)
     )
 """
@@ -82,7 +82,7 @@ fin_visita_stmt = """
 
 # I3 - Registrar signos vitales
 signo_vital_registro_stmt = """
-    INSERT INTO signos_vitales_por_visita (paciente_id, doctor_id, visita_id, tipo_medicion, valor, timestamp)
+    INSERT INTO signos_vitales_por_visita (paciente_id, doctor_id, visita_id, tipo_medicion, valor, fecha_registro)
     VALUES (?, ?, ?, ?, ?, ?)
 """
 
@@ -129,8 +129,8 @@ INSERT_VISITA_DEL_DIA = """
     VALUES (?, ?, ?, ?, ?, ?)
 """
 INSERT_DIAGNOSTICO = """
-    INSERT INTO diagnosticos_por_visita (paciente_id, doctor_id, visita_id, diagnostico, fecha)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO diagnosticos_por_visita (paciente_id, doctor_id, visita_id, diagnostico, fecha, momento_registro)
+    VALUES (?, ?, ?, ?, ?, ?)
 """
 
 

@@ -92,11 +92,6 @@ def filtrar_pacientes(filtros: dict):
         print(f"Buscando expediente para Paciente ID: {p_id_obj} (Tipo: {type(p_id_obj)})")
         exp = expedientes.find_one({"paciente_id": ObjectId(p["_id"])})
 
-        if exp is None:
-            print("❌ No se encontró expediente (Revisa si en Mongo 'paciente_id' es String o ObjectId)")
-        else:
-            print("✅ Expediente encontrado")
-
         resultados.append({"paciente": p, "expediente": exp})
 
     for item in resultados:

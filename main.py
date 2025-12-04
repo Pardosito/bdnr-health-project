@@ -16,7 +16,8 @@ from Mongo.services.pacientes_service import (
 
 from Mongo.services.expediente_service import (
     crear_expediente,
-    agregar_padecimiento
+    agregar_padecimiento,
+    agregar_tratamiento
 )
 
 from Mongo.pipelines.aggregations import (
@@ -33,7 +34,8 @@ from Cassandra.cassandra import (
     registrar_receta_por_visita,
     consultar_recetas_por_doctor,
     obtener_diagnostico_tratamiento_paciente,
-    verificar_disponibilidad_doctor
+    verificar_disponibilidad_doctor,
+    registrar_diagnostico_por_visita
 )
 
 # SERVICIOS DGRAPH
@@ -66,6 +68,7 @@ def submenu_mongo():
         print("9. Añadir padecimiento a paciente")
         print("10. Pipeline: edad promedio + frecuencia medicamentos")
         print("11. Pipeline: buckets de edad")
+        print("12. Añadir tratamiento a paciente")
         print("0. Regresar\n")
 
         choice = int(input("Seleccione una opción Mongo: "))
@@ -126,8 +129,10 @@ def submenu_mongo():
 
             case 9:
                 nombre = input("Nombre del paciente: ")
+                doc = input("Nombre del Doctor: ")
                 pade = input("Padecimiento: ")
-                print(agregar_padecimiento(nombre, pade))
+                doc_val = doc if doc.strip() else None
+                print(agregar_padecimiento(nombre, pade, doc_val))
 
             case 10:
                 diag = input("Padecimiento: ")
@@ -136,6 +141,12 @@ def submenu_mongo():
             case 11:
                 diag = input("Padecimiento: ")
                 print(buckets_por_edad(diag))
+
+            case 12:
+                nombre = input("Nombre del paciente")
+                doc = input("Nombre del doctor: ")
+                tratamiento = input("Tratamiento: ")
+                agregar_tratamiento(nombre, doc, tratamiento)
 
             case 0:
                 return
@@ -159,6 +170,7 @@ def submenu_cassandra():
         print("6. Consultar recetas por doctor")
         print("7. Diagnóstico + tratamiento por fecha")
         print("8. Disponibilidad del doctor")
+        print("9. Registrar diagnóstico")
         print("0. Regresar\n")
 
         choice = int(input("Seleccione opción Cassandra: "))
@@ -187,9 +199,8 @@ def submenu_cassandra():
             case 5:
                 paciente = input("Paciente: ")
                 doctor = input("Doctor: ")
-                visita_id = input("Visita ID: ")
                 receta = input("Receta: ")
-                registrar_receta_por_visita(paciente, doctor, visita_id, receta)
+                registrar_receta_por_visita(paciente, doctor, receta)
 
             case 6:
                 doctor = input("Doctor: ")
@@ -205,6 +216,12 @@ def submenu_cassandra():
                 doctor = input("Doctor: ")
                 fecha = input("Fecha: ")
                 verificar_disponibilidad_doctor(doctor, fecha)
+
+            case 9:
+                doctor = input("Doctor: ")
+                paciente = input("Paciente: ")
+                diagnostico = input("Diagnóstico: ")
+                registrar_diagnostico_por_visita(doctor, paciente, diagnostico)
 
             case 0:
                 return

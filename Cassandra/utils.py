@@ -14,7 +14,7 @@ def get_visita_id(session, fecha_busqueda, doctor_id, paciente_id):
     try:
         # fecha_busqueda debe ser tipo date(), ej: date(2023, 10, 27)
         stmt = session.prepare(query)
-        row = session.execute(stmt, [fecha_busqueda, doctor_id, paciente_id]).one()
+        row = session.execute(stmt, [fecha_busqueda, str(doctor_id), str(paciente_id)]).one()
 
         return row.hora_inicio if row else None
 
@@ -32,14 +32,16 @@ def get_visita_activa(session, paciente_id):
     if paciente_id is None:
         print("[Cassandra.utils] get_visita_activa: paciente_id es None — no se puede consultar visita activa.")
         return None
+
     stmt = session.prepare(query)
-    row = session.execute(stmt, [paciente_id]).one()
+
+    row = session.execute(stmt, [str(paciente_id)]).one()
 
     if row:
         if row.timestamp_fin is None:
             return row.timestamp_inicio
         else:
-            print("El paciente no tiene visitas activas.")
+            print("El paciente no tiene visitas activas (la última ya finalizó).")
             return None
     return None
 
@@ -60,5 +62,3 @@ class medicionesEnum(Enum):
         FREC_RESPIRATORIA = 5
         PESO = 6
         ESTATURA = 7
-
-

@@ -146,6 +146,7 @@ def poblar_todo():
             for _ in range(random.randint(1,3)):
                 doc = random.choice(lista_doctores)
                 fecha = fake.date_between(start_date='-4m', end_date='today')
+                print(fecha)
                 visita_id = uuid.uuid1()
 
                 # Generamos timestamp para inicio y fin

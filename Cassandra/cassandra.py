@@ -6,6 +6,8 @@ from .utils import get_visita_id, get_visita_activa, visitasEnum, medicionesEnum
 import uuid
 from connect import get_cassandra
 from datetime import date, datetime
+from Mongo.mongo import expedientes
+from bson import ObjectId
 
 session = get_cassandra()
 
@@ -73,28 +75,63 @@ def registrar_signo_vital(nombre_paciente, nombre_doctor, tipo_medicion, valor):
 
   visita = get_visita_activa(session, paciente)
   if visita is None:
-    print(f"No se encontró visita activa para paciente_id={paciente}. El signo será registrado sin referencia de visita.")
+    print(f"No se encontró visita activa para paciente: {get_paciente_by_id(paciente)['nombre']}.")
+    return
 
   try:
     stmt = session.prepare(model.signo_vital_registro_stmt)
     session.execute(stmt, [str(paciente), str(doctor), str(visita) if visita is not None else None, enum_member.name, str(valor), uuid.uuid1()])
-    print(f"Signo vital {enum_member.name} registrado correctamente para paciente_id={paciente}.")
+    print(f"Signo vital {enum_member.name} registrado correctamente para paciente: {nombre_paciente}.")
   except Exception as e:
     print(f"Error al registrar signo vital: {e}")
 
-def registrar_receta_por_visita(nombre_paciente, nombre_doctor, visita_id, receta):
+
+def registrar_receta_por_visita(nombre_paciente, nombre_doctor, receta):
   paciente = get_paciente_id(nombre_paciente)
   doctor = get_doctor_id(nombre_doctor)
   visita = get_visita_activa(session, paciente)
+
+  if not visita:
+    return f"El paciente {nombre_paciente} no tiene visitas activas"
   if not receta:
-    raise "La receta necesita contenido para ser guardada"
+    return "La receta necesita contenido para ser guardada"
   receta = receta
   try:
     stmt = session.prepare(model.recete_medica_registro_stmt)
-    session.execute(stmt, [str(paciente), str(doctor), str(visita) if visita is not None else visita_id, receta])
+    session.execute(stmt, [str(paciente), str(doctor), str(visita), receta])
     print(f"Receta por doctor {nombre_doctor} guardada correctamente")
   except Exception as e:
     print(f"Error guardando receta: {e}")
+
+def registrar_diagnostico_por_visita(nombre_doctor, nombre_paciente, diagnostico):
+    doc_id = get_doctor_id(nombre_doctor)
+    pac_id = get_paciente_id(nombre_paciente)
+
+    if not doc_id or not pac_id:
+        return "Error: Doctor o Paciente no encontrado."
+
+    visita = get_visita_activa(session, pac_id)
+    today = date.today()
+    formatted_date = today.strftime("%Y-%m-%d")
+
+    if not diagnostico:
+        return "Se necesita ingresar un diagnóstico"
+
+    try:
+        stmt = session.prepare(model.INSERT_DIAGNOSTICO)
+        visita_val = str(visita) if visita else None
+        session.execute(stmt, [str(pac_id), str(doc_id), visita_val, diagnostico, formatted_date, uuid.uuid1()])
+
+        expedientes.update_one(
+            {"paciente_id": ObjectId(pac_id)},
+            {"$addToSet": {"padecimientos": diagnostico}}
+        )
+
+        return f"Diagnóstico '{diagnostico}' registrado para paciente {nombre_paciente}."
+
+    except Exception as e:
+        print(f"Error registrando diagnóstico: {e}")
+        return f"Error: {e}"
 
 def consultar_recetas_por_doctor(nombre_doctor):
   doctor = get_doctor_id(nombre_doctor)
@@ -105,21 +142,54 @@ def consultar_recetas_por_doctor(nombre_doctor):
       print(f"Doctor {nombre_doctor} no tiene citas almacenadas")
       return None
     for row in rows:
-      print(f"DOCTOR: {get_doctor_by_id(row.doctor_id)}   PACIENTE: {row.paciente_id}   RECETA: {row.receta}")
+      doctor = get_doctor_by_id(row.doctor_id)
+      paciente = get_paciente_by_id(row.paciente_id)
+      print(f"DOCTOR: {doctor['nombre']}   PACIENTE: {paciente['nombre']}   RECETA: {row.receta}")
   except Exception as e:
     print(f"Error obteniendo recetas: {e}")
 
-def obtener_diagnostico_tratamiento_paciente(nombre_doctor, nombre_paciente, fecha): #Se le debe pasar fecha
-  doctor = get_doctor_id(nombre_doctor)
-  paciente = get_paciente_id(nombre_paciente)
-  try:
-    stmt = session.prepare(model.SELECT_DIAGNOSTICO_DE_PACIENTE)
-    diagnotisco = session.execute(stmt, [str(doctor), str(paciente), fecha])
-    # diagnotisco puede ser un cursor; iterar para mostrar resultados
-    for row in diagnotisco:
-      print(f"DOCTOR: {get_doctor_by_id(row.doctor_id)}  PACIENTE: {get_paciente_by_id(row.paciente_id)}   DIAGNOSTICO: {row.diagnostico}  FECHA: {row.fecha}")
-  except Exception as e:
-    print(f"Error obteniendo diágnostico: {e}")
+def obtener_diagnostico_tratamiento_paciente(nombre_doctor, nombre_paciente, fecha_str):
+    """
+    Obtiene el diagnóstico filtrando por Doctor, Paciente y Fecha.
+    fecha_str debe ser 'YYYY-MM-DD'.
+    """
+    doctor_id = get_doctor_id(nombre_doctor)
+    paciente_id = get_paciente_id(nombre_paciente)
+
+    if not doctor_id:
+        print(f"Error: No se encontró al doctor '{nombre_doctor}'.")
+        return
+    if not paciente_id:
+        print(f"Error: No se encontró al paciente '{nombre_paciente}'.")
+        return
+
+    try:
+        fecha_obj = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+    except ValueError:
+        print("Error: Formato de fecha inválido. Usa YYYY-MM-DD.")
+        return
+
+    try:
+        stmt = session.prepare(model.SELECT_DIAGNOSTICO_DE_PACIENTE)
+
+        rows = session.execute(stmt, [str(doctor_id), str(paciente_id), fecha_obj])
+
+        rows_list = list(rows)
+        if not rows_list:
+            print("No se encontraron diagnósticos para esa fecha.")
+            return
+
+        for row in rows_list:
+            doc_data = get_doctor_by_id(row.doctor_id)
+            pac_data = get_paciente_by_id(row.paciente_id)
+
+            nombre_doc = doc_data['nombre'] if isinstance(doc_data, dict) else "Desconocido"
+            nombre_pac = pac_data['nombre'] if isinstance(pac_data, dict) else "Desconocido"
+
+            print(f"DOCTOR: {nombre_doc} | PACIENTE: {nombre_pac} | DIAGNÓSTICO: {row.diagnostico} | FECHA: {row.fecha}")
+
+    except Exception as e:
+        print(f"Error obteniendo diagnóstico: {e}")
 
 def verificar_disponibilidad_doctor(nombre_doctor, fecha): #Se le debe pasar fehca
   doctor = get_doctor_id(nombre_doctor)

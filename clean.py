@@ -1,7 +1,9 @@
 import os
-from connect import get_mongo, get_cassandra, get_dgraph
+from connect import get_mongo, get_dgraph
+from cassandra.cluster import Cluster
+import pydgraph
 
-MONGO_DB_NAME = "plataforma_salud"
+MONGO_DB_NAME = os.getenv("MONGO_DB", "health_platform")
 CASSANDRA_KEYSPACE = os.getenv('CASSANDRA_KEYSPACE', 'health_service')
 
 def limpiar_todo():
@@ -24,13 +26,13 @@ def limpiar_todo():
     # 2. LIMPIAR CASSANDRA
     print(f"\n--- Limpiando Cassandra ({CASSANDRA_KEYSPACE}) ---")
     try:
-        session = get_cassandra()
-        if session is not None:
-            query = f"DROP KEYSPACE IF EXISTS {CASSANDRA_KEYSPACE};"
-            session.execute(query)
-            print(f"Keyspace '{CASSANDRA_KEYSPACE}' eliminado.")
-        else:
-            print("No hay conexión a Cassandra.")
+        cluster = Cluster(["127.0.0.1"])
+        session = cluster.connect()
+
+        query = f"DROP KEYSPACE IF EXISTS {CASSANDRA_KEYSPACE};"
+        session.execute(query)
+        print(f"Keyspace '{CASSANDRA_KEYSPACE}' eliminado.")
+        cluster.shutdown()
     except Exception as e:
         print(f"Error limpiando Cassandra: {e}")
 
@@ -40,7 +42,7 @@ def limpiar_todo():
     try:
         client = get_dgraph()
         if client is not None:
-            op = client.operation(drop_all=True)
+            op = pydgraph.Operation(drop_all=True)
             client.alter(op)
             print("Dgraph reseteado totalmente (Drop All).")
         else:

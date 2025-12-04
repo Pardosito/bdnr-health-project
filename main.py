@@ -25,6 +25,8 @@ from Mongo.pipelines.aggregations import (
     buckets_por_edad
 )
 
+from Mongo.utils import get_paciente_id, get_doctor_id
+
 # SERVICIOS CASSANDRA
 from Cassandra.cassandra import (
     registro_inicio_visita,
@@ -232,7 +234,7 @@ def submenu_cassandra():
 
 
 # ======================
-# SUBMENU DGRAPH (CORREGIDO)
+# SUBMENU DGRAPH
 # ======================
 def submenu_dgraph(dgraph):
     while True:
@@ -258,15 +260,18 @@ def submenu_dgraph(dgraph):
                 print(meds_recetados_juntos(dgraph, cond))
 
             case 3:
-                pid = input("Paciente ID: ")
+                nombre = input("Nombre paciente: ")
+                pid = get_paciente_id(nombre)
                 print(sugerir_segunda_opinion(dgraph, pid))
 
             case 4:
-                pid = input("Paciente ID: ")
+                nombre = input("Nombre paciente: ")
+                pid = get_paciente_id(nombre)
                 print(detectar_conflictos_tratamiento(dgraph, pid))
 
             case 5:
-                did = input("Doctor ID: ")
+                nombre = input("Nombre doctor: ")
+                did = get_doctor_id(nombre)
                 print(analizar_red_doctor(dgraph, did))
 
             case 6:

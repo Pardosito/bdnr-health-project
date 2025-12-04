@@ -79,11 +79,6 @@ def meds_recetados_juntos(client, nombre_condicion):
 
 # 2. Sugerir segunda opinión
 def sugerir_segunda_opinion(client, paciente_id):
-    """
-    Sugiere especialistas que hayan tratado la misma condición del paciente,
-    excluyendo a sus doctores actuales.
-    """
-    # Paso 1: Obtener condición del paciente y sus doctores actuales
     query = """query q($pid: string) {
       var(func: eq(id, $pid)) {
         mis_docs as ~atiende { uid }
@@ -92,8 +87,6 @@ def sugerir_segunda_opinion(client, paciente_id):
         }
       }
 
-      # Buscar doctores que NO sean mis doctores
-      # Y que hayan recetado tratamientos PARA mi condición
       sugerencias(func: type(Doctor)) @filter(not uid(mis_docs)) {
         nombre
         especialidad
@@ -109,37 +102,30 @@ def sugerir_segunda_opinion(client, paciente_id):
     res = client.txn(read_only=True).query(query, variables=variables)
     data = json.loads(res.json)
 
-    # Filtrar doctores que efectivamente tienen tratamientos asociados a esa condición
     candidatos = []
     for doc in data.get('sugerencias', []):
-        if doc.get('prescribe'): # Si la lista no está vacía, es que ha tratado la condición
+        if doc.get('prescribe'):
             candidatos.append(doc['nombre'])
 
-    return candidatos
+    for candidato in candidatos:
+      print(f"DOCTOR: {candidato}")
 
 
 # 3. Detectar conflictos de tratamiento
 def detectar_conflictos_tratamiento(client, paciente_id):
-    """
-    Detecta interacciones negativas entre medicamentos que toma el paciente
-    y alergias a medicamentos recetados.
-    """
     query = """query q($pid: string) {
       paciente(func: eq(id, $pid)) {
         nombre
-        # 1. Medicamentos que recibe actualmente
         recibe {
           incluye {
             uid
             nombre
-            # Traer interacciones conocidas de estos medicamentos
             interactua_con {
               uid
               nombre
             }
           }
         }
-        # 2. Alergias registradas
         es_alergico {
           uid
           nombre
@@ -156,7 +142,6 @@ def detectar_conflictos_tratamiento(client, paciente_id):
 
     paciente_node = data['paciente'][0]
 
-    # Aplanar lista de medicamentos que toma el paciente
     mis_meds = []
     mis_meds_nombres = set()
 
@@ -168,30 +153,24 @@ def detectar_conflictos_tratamiento(client, paciente_id):
 
     alertas = []
 
-    # A) Verificar Interacciones (Medicamento A vs Medicamento B)
     for med in mis_meds:
         interacciones = med.get('interactua_con', [])
         for interaccion in interacciones:
             if interaccion['nombre'] in mis_meds_nombres:
-                # Evitar duplicados A-B y B-A
                 alerta = f"INTERACCIÓN: {med['nombre']} <-> {interaccion['nombre']}"
-                if alerta not in alertas: # Check simple
+                if alerta not in alertas:
                     alertas.append(alerta)
 
-    # B) Verificar Alergias
     alergias = [a['nombre'] for a in paciente_node.get('es_alergico', [])]
     for med_nombre in mis_meds_nombres:
         if med_nombre in alergias:
-            alertas.append(f"ALERGIA: El paciente está tomando {med_nombre} y es alérgico a él.")
+            alertas.append(f"ALERGIA: El paciente está tomando {med_nombre} y es alérgico.")
 
-    return alertas if alertas else ["No se detectaron conflictos."]
+    return alertas if alertas else "No se detectaron conflictos."
 
 
 # 4. Pacientes polifarmacia (muchos tratamientos/medicamentos)
 def pacientes_polifarmacia(client, umbral=3):
-    """
-    Identifica pacientes con más de 'umbral' tratamientos activos.
-    """
     query = """query q() {
       pacientes(func: type(Paciente)) {
         nombre
@@ -214,27 +193,15 @@ def pacientes_polifarmacia(client, umbral=3):
 
 # 5. Analizar propagación de diagnóstico contagioso
 def analizar_propagacion_contagiosa(client):
-    """
-    Encuentra pacientes en riesgo: aquellos que fueron atendidos por doctores
-    que han tratado condiciones contagiosas.
-    Ruta: Condicion(contagioso) <- para - Tratamiento <- prescribe - Doctor -> atiende -> Paciente
-    """
-    # Reescribimos la consulta en pasos claros usando variables:
-    # 1) encontrar condiciones contagiosas
-    # 2) desde la condición tomar los Tratamientos (~para)
-    # 3) desde esos Tratamientos tomar los Doctores que los prescriben (~prescribe)
-    # 4) listar los pacientes atendidos por esos doctores
     query = """query q() {
       var(func: eq(contagioso, true)) {
         cond as uid
       }
 
-      # tratamientos que apuntan a esas condiciones
       var(func: uid(cond)) {
         ~para { trat as uid }
       }
 
-      # doctores que prescriben esos tratamientos
       var(func: uid(trat)) {
         ~prescribe { doc_riesgo as uid }
       }
@@ -251,8 +218,13 @@ def analizar_propagacion_contagiosa(client):
 
     res = client.txn(read_only=True).query(query)
     data = json.loads(res.json)
-    # Devolver lista vacía de forma segura si la clave no existe
-    return data.get('pacientes_riesgo', [])
+    riesgo = data.get('pacientes_riesgo', [])
+    for doctor in riesgo:
+      print(f"DOCTOR: {doctor['nombre_doctor']}")
+      pacientes = doctor["pacientes_expuestos"]
+      for paciente in pacientes:
+        print(f"PACIENTE EXPUESTO: {paciente['nombre']}")
+
 
 
 # 6. Detectar sobredosis (mismo med, múltiples doctores)
@@ -307,16 +279,11 @@ def detectar_sobredosis(client):
 
 # 7. Red de doctores (co-tratamientos)
 def analizar_red_doctor(client, doctor_id):
-    """
-    Detecta con qué otros doctores comparte pacientes un doctor específico.
-    """
     query = """query q($did: string) {
       doctor(func: eq(id, $did)) {
         nombre
-        # Pacientes que atiende
         atiende {
           nombre
-          # Qué otros doctores atienden a estos pacientes (excluyendo al original se filtra en post-proceso)
           ~atiende {
              nombre
              id
@@ -344,17 +311,11 @@ def analizar_red_doctor(client, doctor_id):
 
 # 8 y 9. Frecuencias por Especialidad
 def padecimientos_por_especialidad(client):
-    """
-    Top 5 padecimientos más tratados por cada especialidad.
-    """
     query = """query q() {
       especialidades(func: type(Especialidad)) {
         nombre
-        # Doctores de esta especialidad
         ~tiene_especialidad {
-           # Tratamientos que prescriben
            prescribe {
-             # Condiciones que tratan
              para {
                nombre
              }
@@ -371,21 +332,16 @@ def padecimientos_por_especialidad(client):
     for esp in data['especialidades']:
         condiciones_counter = Counter()
 
-        # Navegar el grafo en JSON para contar
         for doc in esp.get('~tiene_especialidad', []):
             for trat in doc.get('prescribe', []):
                 for cond in trat.get('para', []):
                     condiciones_counter[cond['nombre']] += 1
 
-        # Top 5
         reporte[esp['nombre']] = condiciones_counter.most_common(5)
 
     return reporte
 
 def relacionar_doctor_tratamiento(client, doctor_uid, tratamiento_uid):
-    """
-    Crea la relación: Doctor --prescribe--> Tratamiento
-    """
     txn = client.txn()
     try:
         data = {"uid": doctor_uid, "prescribe": [{"uid": tratamiento_uid}]}

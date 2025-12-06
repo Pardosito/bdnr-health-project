@@ -31,7 +31,7 @@ def _connect():
 	pacientes = db["pacientes"]
 	expedientes = db["expedientes"]
 
-	# Índices (creación idempotente)
+	# Índices
 	try:
 		doctores.create_index("nombre")
 		doctores.create_index("especialidad")

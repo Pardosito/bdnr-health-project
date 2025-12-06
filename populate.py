@@ -74,78 +74,64 @@ def relacionar_paciente_alergia(client, paciente_uid, medicamento_uid):
         txn.discard()
 
 
-# --- LÓGICA DE CREACIÓN DE ESCENARIOS DGRAPH ---
+# Escenarios dgraph
 
 def poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, mapa_cond):
     print("\n=== DGRAPH - Creando Escenarios de Prueba ===")
 
-    # ESCENARIO 0: MEDICAMENTOS RECETADOS JUNTOS
-    # Objetivo: Crear tratamientos que tengan múltiples medicamentos para una misma condición
+    # Escenario 0: meds recetados juntos
     for i in range(1, 5):
-        # Seleccionamos un padecimiento aleatorio por nombre
         nombre_cond = random.choice(list(mapa_cond.keys()))
         cond_uid = mapa_cond[nombre_cond]["dgraph_uid"]
 
         t_combo = dg_utils.crear_tratamiento(dgraph, f"Combo para {nombre_cond}", f"{random.randint(1,15)} días")
 
-        # Seleccionamos un medicamento base aleatorio
         med_info = random.choice(MEDICAMENTOS)
         med_nombre = med_info["nombre"]
         med_uid = mapa_med[med_nombre]["dgraph_uid"]
 
-        # Relacionamos el mismo medicamento 3 veces (o podrías elegir 3 distintos)
-        # Nota: Para probar "recetados juntos" idealmente serían distintos, pero el query agrupa igual.
         dg_utils.relacionar_tratamiento_medicamento(dgraph, t_combo, med_uid)
 
-        # Agregamos otro medicamento distinto para enriquecer el combo
         med_extra = random.choice(MEDICAMENTOS)
         med_extra_uid = mapa_med[med_extra["nombre"]]["dgraph_uid"]
         dg_utils.relacionar_tratamiento_medicamento(dgraph, t_combo, med_extra_uid)
 
         relacionar_tratamiento_condicion(dgraph, t_combo, cond_uid)
-        print(f"💊 Combo creado para Query 'Meds recetados juntos' ({nombre_cond})")
+        print(f"Combinación creada para Query 'Meds recetados juntos' ({nombre_cond})")
 
-    # ESCENARIO 1: CONFLICTOS
+    # Escenario 1: Conflictos
     for i in range(1,5):
-        # Seleccionar nombres de medicamentos
         med_A_info = random.choice(MEDICAMENTOS)
         med_B_info = random.choice(MEDICAMENTOS)
 
-        # Asegurar que sean distintos
         while med_B_info == med_A_info:
              med_B_info = random.choice(MEDICAMENTOS)
 
         med_A_nombre = med_A_info["nombre"]
         med_B_nombre = med_B_info["nombre"]
 
-        # Obtener UIDs del mapa
         med_A_uid = mapa_med[med_A_nombre]["dgraph_uid"]
         med_B_uid = mapa_med[med_B_nombre]["dgraph_uid"]
 
-        # Crear interacción
         dg_utils.crear_interaccion(dgraph, med_A_uid, med_B_uid)
 
         paciente_conflicto = random.choice(lista_pacientes)
         doc_conflicto = random.choice(lista_doctores)
 
-        # Relacionar alergia
         relacionar_paciente_alergia(dgraph, paciente_conflicto["dgraph_uid"], med_A_uid)
 
-        # Mongo Alergia (String)
         agregar_alergia(paciente_conflicto["_id"], med_A_nombre)
 
-        # Crear tratamiento conflictivo
         t_conflicto = dg_utils.crear_tratamiento(dgraph, "Trat. Conflicto Aleatorio", f"{random.randint(1,15)} días")
         dg_utils.relacionar_tratamiento_medicamento(dgraph, t_conflicto, med_A_uid)
         dg_utils.relacionar_tratamiento_medicamento(dgraph, t_conflicto, med_B_uid)
 
         dg_utils.relacionar_paciente_tratamiento(dgraph, paciente_conflicto["dgraph_uid"], t_conflicto)
         relacionar_doctor_tratamiento(dgraph, doc_conflicto["dgraph_uid"], t_conflicto)
-        print(f"⚠ Conflicto para: {paciente_conflicto['nombre']}")
+        print(f"Conflicto para: {paciente_conflicto['nombre']}")
 
-    # ESCENARIO 2: SOBREDOSIS
+    # Escenario 2: Sobredosis
     for i in range(1,3):
-        # Elegir paciente que no sea el del conflicto anterior para variar
         paciente_sobredosis = random.choice(lista_pacientes)
 
         doc_sobredosis_A = lista_doctores[0]
@@ -154,13 +140,11 @@ def poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, 
         med_info = random.choice(MEDICAMENTOS)
         med_uid = mapa_med[med_info["nombre"]]["dgraph_uid"]
 
-        # Tratamiento A
         t_sobre_a = dg_utils.crear_tratamiento(dgraph, "Sobredosis A", f"{random.randint(1,15)} días")
         dg_utils.relacionar_tratamiento_medicamento(dgraph, t_sobre_a, med_uid)
         dg_utils.relacionar_paciente_tratamiento(dgraph, paciente_sobredosis["dgraph_uid"], t_sobre_a)
         relacionar_doctor_tratamiento(dgraph, doc_sobredosis_A["dgraph_uid"], t_sobre_a)
 
-        # Tratamiento B (mismo med, distinto doc)
         t_sobre_b = dg_utils.crear_tratamiento(dgraph, "Sobredosis B", f"{random.randint(1,15)} días")
         dg_utils.relacionar_tratamiento_medicamento(dgraph, t_sobre_b, med_uid)
         dg_utils.relacionar_paciente_tratamiento(dgraph, paciente_sobredosis["dgraph_uid"], t_sobre_b)
@@ -168,9 +152,7 @@ def poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, 
 
         print(f"Caso Sobredosis para: {paciente_sobredosis['nombre']}")
 
-    # ----------------------------------------------------
-    # ESCENARIO 3: SUGERENCIA (DINÁMICA POR ESPECIALIDAD)
-    # ----------------------------------------------------
+    # Escenario 3: Sugerenica
     casos_generados = 0
     for p in lista_pacientes:
         cond_nombre = None
@@ -208,9 +190,8 @@ def poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, 
         if casos_generados >= 5:
             break
 
-    # ESCENARIO 4: PROPAGACION
+    # Escenario 4: Propagación
     for i in range(1,3):
-        # Seleccionar nombre de condición al azar
         nombre_cond = random.choice(list(mapa_cond.keys()))
         cond_contagiosa_uid = mapa_cond[nombre_cond]["dgraph_uid"]
 
@@ -227,15 +208,15 @@ def poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, 
         dg_utils.relacionar_doctor_atiende(dgraph, doc_contagioso["dgraph_uid"], paciente_riesgo["dgraph_uid"])
         print(f"Propagación: {doc_contagioso['nombre']} atiende a {paciente_contagiado['nombre']} y {paciente_riesgo['nombre']}")
 
-    # ESCENARIO 5: POLIFARMACIA
+    # Escenario 5: Polimeds
     paciente_poli = random.choice(lista_pacientes)
     for i in range(4):
         med_nombre = random.choice(MEDICAMENTOS)["nombre"]
         t_poli = dg_utils.crear_tratamiento(dgraph, med_nombre, f"{random.randint(1,7)} días")
         dg_utils.relacionar_paciente_tratamiento(dgraph, paciente_poli["dgraph_uid"], t_poli)
-    print(f"Polifarmacia para: {paciente_poli['nombre']}")
+    print(f"Polimeds para: {paciente_poli['nombre']}")
 
-    # ESCENARIO 6: RED DOCTOR
+    # Escenario 6: Red doctorin rin rin
     if len(lista_doctores) >= 3 and len(lista_pacientes) >= 2:
         doc_central = lista_doctores[0]
         doc_colega1 = lista_doctores[1]
@@ -257,12 +238,12 @@ def poblar_todo():
     dgraph = get_dgraph()
 
     if mongo is None:
-        print("❌ Mongo no conectado")
+        print("Mongo no conectado")
         return
 
     # --- RESET DGRAPH ---
     if dgraph:
-        print("\n🧨 Reseteando Dgraph...")
+        print("\neseteando Dgraph...")
         dgraph.alter(pydgraph.Operation(drop_all=True))
         dg_utils.set_schema()
 
@@ -291,6 +272,7 @@ def poblar_todo():
                 "correo": fake.email(),
                 "consultorio": str(random.randint(100, 500))
             }
+            print(doc_data)
             doc_id = registrar_doctor(doc_data)
             uid = None
             if dgraph:
@@ -312,6 +294,7 @@ def poblar_todo():
             "seguro": "GNP",
             "poliza": str(fake.random_number(digits=10))
         }
+        print(pac)
         pac_id = registrar_paciente(pac)
         crear_expediente(pac_id)
         uid = None
@@ -320,15 +303,12 @@ def poblar_todo():
             uid = dg_utils.crear_paciente(dgraph, pac["nombre"], str(pac_id), edad, pac["direccion"])
         lista_pacientes.append({**pac, "_id": str(pac_id), "dgraph_uid": uid})
 
-    print(f"🩺 {len(lista_doctores)} Doctores y 🧍 {len(lista_pacientes)} Pacientes creados.")
+    print(f"{len(lista_doctores)} Doctores y {len(lista_pacientes)} Pacientes creados.")
 
-    # ==========================================================
     # CASSANDRA
-    # ==========================================================
     if cassandra:
         print("\n=== CASSANDRA - Datos Clínicos y Citas ===")
 
-        # 1. Visitas pasadas/completas (para historial)
         for p in lista_pacientes:
             try:
                 doctor = random.choice(lista_doctores)
@@ -336,7 +316,6 @@ def poblar_todo():
 
                 registro_inicio_visita(p["nombre"], nombre_doc)
 
-                # Signos y Datos
                 sistolica = random.randint(110, 140)
                 diastolica = random.randint(70, 90)
                 registrar_signo_vital(p["nombre"], nombre_doc, "PRESION", f"{sistolica}/{diastolica}")
@@ -354,48 +333,37 @@ def poblar_todo():
             except Exception as e:
                 print(f"Error generando visita simulada: {e}")
 
-        # ---------------------------------------------------------------------
-        # NUEVO BLOQUE: 20 Citas para Disponibilidad (Futuras / Agendadas)
-        # ---------------------------------------------------------------------
         print("\n=== CASSANDRA - Generando Citas Agendadas (Disponibilidad) ===")
 
-        # 1. Elegir 5 días aleatorios en el futuro cercano (ej. dentro de los próximos 10 días)
         today = date.today()
-        dias_futuros = random.sample(range(1, 12), 5) # 5 offsets únicos
+        dias_futuros = random.sample(range(1, 12), 5)
         fechas_agenda = [today + timedelta(days=d) for d in dias_futuros]
-        print(f"📅 Se agendarán citas para los días: {fechas_agenda}")
-
-        # Preparamos el statement directo de INSERT para visitas_del_dia
-        # Ya que 'registro_inicio_visita' usa NOW(), no nos sirve para agendar a futuro.
+        print(f"Se agendarán citas para los días: {fechas_agenda}")
         try:
             stmt_agenda = cassandra.prepare(model.INSERT_VISITA_DEL_DIA)
 
             for _ in range(20):
-                # Datos aleatorios
                 fecha_cita = random.choice(fechas_agenda)
+                print(fecha_cita)
                 doc_agenda = random.choice(lista_doctores)
                 pac_agenda = random.choice(lista_pacientes)
 
-                # Hora aleatoria entre 9:00 y 17:00
                 hora = random.randint(9, 16)
                 minuto = random.choice([0, 30])
 
-                # Crear datetime para inicio y fin
                 dt_inicio = datetime.combine(fecha_cita, datetime.min.time()).replace(hour=hora, minute=minuto)
-                dt_fin = dt_inicio + timedelta(minutes=30) # Citas de 30 mins
+                dt_fin = dt_inicio + timedelta(minutes=30)
 
-                # Convertir a TimeUUID (Requisito de Cassandra para columnas timeuuid)
                 uuid_inicio = uuid_from_time(dt_inicio)
                 uuid_fin = uuid_from_time(dt_fin)
 
-                # Insertar
                 cassandra.execute(stmt_agenda, [
-                    fecha_cita,              # fecha (partition key)
-                    "CITA_GENERAL",          # tipo_visita
-                    str(pac_agenda['_id']),  # paciente_id
-                    str(doc_agenda['_id']),  # doctor_id
-                    uuid_inicio,             # hora_inicio
-                    uuid_fin                 # hora_fin
+                    fecha_cita,
+                    "CITA_GENERAL",
+                    str(pac_agenda['_id']),
+                    str(doc_agenda['_id']),
+                    uuid_inicio,
+                    uuid_fin
                 ])
                 print(f"Agendada: {fecha_cita} {hora}:{minuto:02d} - {doc_agenda['nombre']} - {pac_agenda['nombre']}")
 
@@ -414,7 +382,7 @@ def poblar_todo():
 
         poblar_dgraph_escenarios(dgraph, lista_doctores, lista_pacientes, mapa_med, mapa_cond)
 
-    print("\n✨ POBLACIÓN COMPLETADA - LISTO PARA PROBAR TODOS LOS QUERIES")
+    print("\nPOBLACIÓN COMPLETADA - LISTO PARA PROBAR TODOS LOS QUERIES")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,17 @@
 from datetime import datetime
 import uuid
 from enum import Enum
+from cassandra.util import datetime_from_uuid1
+
+def timeuuid_a_hora(uuid_val):
+    if not uuid_val:
+        return "N/A"
+
+    try:
+        dt = datetime_from_uuid1(uuid_val)
+        return dt.strftime("%H:%M")
+    except Exception:
+        return "Formato inválido"
 
 def get_visita_id(session, fecha_busqueda, doctor_id, paciente_id):
     query = """

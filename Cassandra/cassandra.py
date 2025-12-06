@@ -1,6 +1,7 @@
 import os
 from . import model
 from cassandra.cluster import Cluster
+from Cassandra.utils import timeuuid_a_hora
 from Mongo.utils import get_doctor_id, get_paciente_id, get_doctor_by_id, get_paciente_by_id
 from .utils import get_visita_id, get_visita_activa, visitasEnum, medicionesEnum
 import uuid
@@ -40,11 +41,22 @@ def obtener_visitas_del_dia(fecha):
     stmt = session.prepare(model.SELECT_VISITAS_POR_DIA)
     rows = session.execute(stmt, [objeto_fecha])
     rows_list = list(rows)
+
     print(f"Consultando visitas para fecha={objeto_fecha} — filas encontradas: {len(rows_list)}")
+
     if not rows_list:
+      print("No hay visitas programadas para este día.")
       return
+
     for row in rows_list:
-      print(f"DOCTOR: {get_doctor_by_id(row.doctor_id)}   PACIENTE: {get_paciente_by_id(row.paciente_id)}   TIPO VISITA: {row.tipo_visita}  HORA INICIO: {row.hora_inicio}")
+      inicio_str = timeuuid_a_hora(row.hora_inicio)
+      fin_str = timeuuid_a_hora(row.hora_fin)
+
+      doc_nombre = get_doctor_by_id(row.doctor_id)['nombre']
+      pac_nombre = get_paciente_by_id(row.paciente_id)['nombre']
+
+      print(f"DOCTOR: {doc_nombre}, PACIENTE: {pac_nombre}, TIPO: {row.tipo_visita}, HORA: {inicio_str} - {fin_str}")
+
   except Exception as e:
     print(f"Error obteniendo visitas: {e}")
 

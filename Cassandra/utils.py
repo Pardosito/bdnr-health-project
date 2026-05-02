@@ -56,7 +56,7 @@ def get_visita_activa(session, paciente_id):
             return None
     return None
 
-class visitasEnum(Enum):
+class VisitasEnum(Enum):
         CONSULTA_INICIAL = 1
         CONSULTA_SEGUIMIENTO = 2
         URGENCIA = 3
@@ -65,7 +65,7 @@ class visitasEnum(Enum):
         REVISION_MEDICA = 6
 
 
-class medicionesEnum(Enum):
+class MedicionesEnum(Enum):
         PRESION = 1
         RITMO_CARDIACO = 2
         TEMPERATURA = 3

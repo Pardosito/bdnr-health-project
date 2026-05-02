@@ -2,6 +2,8 @@ from connect import get_dgraph
 import pydgraph
 import json
 
+_DGRAPH_TYPE = "dgraph.type"
+
 #schema
 schema = """
 type Doctor {
@@ -91,7 +93,7 @@ def crear_doctor(client, nombre, id_code, especialidad):
     try:
         data = {
             "uid": "_:doctor",
-            "dgraph.type": "Doctor",
+            _DGRAPH_TYPE: "Doctor",
             "nombre": nombre,
             "id": id_code,
             "especialidad": especialidad
@@ -115,7 +117,7 @@ def crear_paciente(client, nombre, id_code, edad, direccion):
     try:
         data = {
             "uid": "_:paciente",
-            "dgraph.type": "Paciente",
+            _DGRAPH_TYPE: "Paciente",
             "nombre": nombre,
             "id": id_code,
             "edad": edad,
@@ -140,7 +142,7 @@ def crear_condicion(client, nombre, contagioso=False):
     try:
         data = {
             "uid": "_:cond",
-            "dgraph.type": "Condicion",
+            _DGRAPH_TYPE: "Condicion",
             "nombre": nombre,
             "contagioso": contagioso
         }
@@ -163,7 +165,7 @@ def crear_medicamento(client, nombre, dosis):
     try:
         data = {
             "uid": "_:med",
-            "dgraph.type": "Medicamento",
+            _DGRAPH_TYPE: "Medicamento",
             "nombre": nombre,
             "dosis": dosis
         }
@@ -186,7 +188,7 @@ def crear_tratamiento(client, tipo, duracion):
     try:
         data = {
             "uid": "_:trat",
-            "dgraph.type": "Tratamiento",
+            _DGRAPH_TYPE: "Tratamiento",
             "tipo": tipo,
             "duracion": duracion
         }
@@ -318,7 +320,7 @@ def crear_especialidad(client, nombre):
     try:
         data = {
             "uid": "_:esp",
-            "dgraph.type": "Especialidad",
+            _DGRAPH_TYPE: "Especialidad",
             "nombre": nombre
         }
         res = txn.mutate(set_obj=data)
@@ -339,23 +341,6 @@ def relacionar_doctor_especialidad(client, doctor_uid, especialidad_uid):
         print("Error relacionando doctor-especialidad:", e)
     finally:
         txn.discard()
-
-def obtener_uid_por_id_mongo(client, mongo_id):
-    query = """query q($mid: string) {
-      nodo(func: eq(id, $mid)) {
-        uid
-      }
-    }"""
-
-    try:
-        res = client.txn(read_only=True).query(query, variables={'$mid': str(mongo_id)})
-        data = json.loads(res.json)
-        if data.get('nodo'):
-            return data['nodo'][0]['uid']
-        return None
-    except Exception as e:
-        print(f"Error buscando UID por Mongo ID: {e}")
-        return None
 
 def obtener_uid_por_id_mongo(client, mongo_id):
     """

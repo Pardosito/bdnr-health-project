@@ -1,3 +1,5 @@
+_NO_EXPEDIENTE = "El paciente no tiene expediente."
+
 from Mongo.mongo import expedientes
 from Mongo.utils import get_paciente_id
 from bson import ObjectId
@@ -52,7 +54,7 @@ def obtener_expediente(paciente_id: str):
     exp = expedientes.find_one({"paciente_id": paciente_id})
 
     if not exp:
-        return {"mensaje": "El paciente no tiene expediente."}
+        return {"mensaje": _NO_EXPEDIENTE}
 
     # convertir ObjectId a string para imprimir bonita
     exp["_id"] = str(exp["_id"])
@@ -72,7 +74,7 @@ def agregar_alergia(paciente_id: str, alergia: str):
     exp = expedientes.find_one({"paciente_id": paciente_id})
 
     if not exp:
-        return {"error": "El paciente no tiene expediente."}
+        return {"error": _NO_EXPEDIENTE}
 
     expedientes.update_one(
         {"paciente_id": ObjectId(paciente_id)},
@@ -80,6 +82,31 @@ def agregar_alergia(paciente_id: str, alergia: str):
     )
 
     return {"mensaje": "Alergia agregada."}
+
+
+def _sync_diagnostico_cassandra(paciente_id, doc_id, diagnostico, mensaje):
+    try:
+        stmt = session.prepare(model.INSERT_DIAGNOSTICO)
+        today = date.today().strftime("%Y-%m-%d")
+        session.execute(stmt, [str(paciente_id), str(doc_id), None, diagnostico, today, uuid.uuid1()])
+    except Exception as e:
+        mensaje += f"(Error Cassandra: {e})"
+    return mensaje
+
+
+def _sync_diagnostico_dgraph(client, paciente_id, doc_id_str, diagnostico, mensaje):
+    try:
+        pac_uid = dg_utils.obtener_uid_por_id_mongo(client, str(paciente_id))
+        doc_uid = dg_utils.obtener_uid_por_id_mongo(client, doc_id_str)
+        cond_uid = dg_utils.crear_condicion(client, diagnostico, contagioso=False)
+        if pac_uid and cond_uid:
+            dg_utils.relacionar_paciente_condicion(client, pac_uid, cond_uid)
+            mensaje += " [Dgraph: Diagnóstico vinculado]"
+        if doc_uid and pac_uid:
+            dg_utils.relacionar_doctor_atiende(client, doc_uid, pac_uid)
+    except Exception as e:
+        mensaje += f" [Dgraph Error: {e}]"
+    return mensaje
 
 
 #agregar padecimiento
@@ -105,31 +132,38 @@ def agregar_padecimiento(nombre_paciente: str, diagnostico: str, nombre_doctor: 
         doc_id = get_doctor_id(nombre_doctor)
         if doc_id:
             doc_id_str = str(doc_id)
-            try:
-                stmt = session.prepare(model.INSERT_DIAGNOSTICO)
-                today = date.today().strftime("%Y-%m-%d")
-                session.execute(stmt, [str(paciente_id), str(doc_id), None, diagnostico, today, uuid.uuid1()])
-            except Exception as e:
-                mensaje += f"(Error Cassandra: {e})"
+            mensaje = _sync_diagnostico_cassandra(paciente_id, doc_id, diagnostico, mensaje)
 
     client = get_dgraph()
     if client and doc_id_str:
-        try:
-            pac_uid = dg_utils.obtener_uid_por_id_mongo(client, str(paciente_id))
-            doc_uid = dg_utils.obtener_uid_por_id_mongo(client, doc_id_str)
+        mensaje = _sync_diagnostico_dgraph(client, paciente_id, doc_id_str, diagnostico, mensaje)
 
-            cond_uid = dg_utils.crear_condicion(client, diagnostico, contagioso=False)
+    return mensaje
 
-            if pac_uid and cond_uid:
-                dg_utils.relacionar_paciente_condicion(client, pac_uid, cond_uid)
-                mensaje += " [Dgraph: Diagnóstico vinculado]"
 
-            if doc_uid and pac_uid:
-                dg_utils.relacionar_doctor_atiende(client, doc_uid, pac_uid)
+def _sync_tratamiento_cassandra(paciente_id, doc_id, tratamiento, mensaje):
+    try:
+        stmt = session.prepare(model.recete_medica_registro_stmt)
+        session.execute(stmt, [str(paciente_id), str(doc_id), None, tratamiento, uuid.uuid1()])
+    except Exception as e:
+        mensaje += f"(Error Cassandra: {e})"
+    return mensaje
 
-        except Exception as e:
-            mensaje += f" [Dgraph Error: {e}]"
 
+def _sync_tratamiento_dgraph(client, paciente_id, doc_id_str, tratamiento, mensaje):
+    try:
+        pac_uid = dg_utils.obtener_uid_por_id_mongo(client, str(paciente_id))
+        doc_uid = dg_utils.obtener_uid_por_id_mongo(client, doc_id_str)
+        trat_uid = dg_utils.crear_tratamiento(client, tratamiento, "Duración no especificada")
+        med_uid = dg_utils.crear_medicamento(client, tratamiento, "Dosis estándar")
+        if pac_uid and trat_uid:
+            dg_utils.relacionar_paciente_tratamiento(client, pac_uid, trat_uid)
+            dg_utils.relacionar_tratamiento_medicamento(client, trat_uid, med_uid)
+        if doc_uid and trat_uid:
+            dg_utils.relacionar_doctor_tratamiento(client, doc_uid, trat_uid)
+            mensaje += " [Dgraph: Tratamiento vinculado]"
+    except Exception as e:
+        mensaje += f" [Dgraph Error: {e}]"
     return mensaje
 
 
@@ -142,7 +176,7 @@ def agregar_tratamiento(nombre_paciente: str, nombre_doctor: str, tratamiento: s
     paciente_id = ObjectId(raw_id) if not isinstance(raw_id, ObjectId) else raw_id
 
     exp = expedientes.find_one({"paciente_id": paciente_id})
-    if not exp: return "El paciente no tiene expediente."
+    if not exp: return _NO_EXPEDIENTE
 
     expedientes.update_one(
         {"paciente_id": paciente_id},
@@ -155,31 +189,10 @@ def agregar_tratamiento(nombre_paciente: str, nombre_doctor: str, tratamiento: s
         doc_id = get_doctor_id(nombre_doctor)
         if doc_id:
             doc_id_str = str(doc_id)
-            try:
-                stmt = session.prepare(model.recete_medica_registro_stmt)
-                session.execute(stmt, [str(paciente_id), str(doc_id), None, tratamiento, uuid.uuid1()])
-            except Exception as e:
-                mensaje += f"(Error Cassandra: {e})"
+            mensaje = _sync_tratamiento_cassandra(paciente_id, doc_id, tratamiento, mensaje)
 
     client = get_dgraph()
     if client and doc_id_str:
-        try:
-            pac_uid = dg_utils.obtener_uid_por_id_mongo(client, str(paciente_id))
-            doc_uid = dg_utils.obtener_uid_por_id_mongo(client, doc_id_str)
-
-            trat_uid = dg_utils.crear_tratamiento(client, tratamiento, "Duración no especificada")
-
-            med_uid = dg_utils.crear_medicamento(client, tratamiento, "Dosis estándar")
-
-            if pac_uid and trat_uid:
-                dg_utils.relacionar_paciente_tratamiento(client, pac_uid, trat_uid)
-                dg_utils.relacionar_tratamiento_medicamento(client, trat_uid, med_uid)
-
-            if doc_uid and trat_uid:
-                dg_utils.relacionar_doctor_tratamiento(client, doc_uid, trat_uid)
-                mensaje += " [Dgraph: Tratamiento vinculado]"
-
-        except Exception as e:
-            mensaje += f" [Dgraph Error: {e}]"
+        mensaje = _sync_tratamiento_dgraph(client, paciente_id, doc_id_str, tratamiento, mensaje)
 
     return mensaje

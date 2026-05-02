@@ -22,9 +22,9 @@ def registrar_doctor(data: dict) -> str:
 
             dg_utils.relacionar_doctor_especialidad(client, doc_uid, esp_uid)
 
-            print(f"[Sync]")
-        except Exception as e:
-            print(f"[Sync Error]")
+            print("[Sync]")
+        except Exception:
+            print("[Sync Error]")
 
     return mongo_id
 
@@ -68,5 +68,3 @@ def buscar_por_especialidad(especialidad: str):
               f"SUBESPECIALIDAD: {doc.get('subespecialidad', 'N/A')}, CEDULA: {doc['cedula']}, "
               f"TELEFONO: {doc['telefono']}, CORREO: {doc['correo']}, "
               f"CONSULTORIO: {doc['consultorio']}")
-
-    return

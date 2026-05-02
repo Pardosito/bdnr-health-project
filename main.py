@@ -28,6 +28,16 @@ from Dgraph.queries import (
 )
 
 
+_BACK = "0. Regresar al menú principal"
+_SELECT = "\nSeleccione una opción: "
+_INVALID = "Entrada inválida."
+_UNRECOGNIZED = "Opción no reconocida."
+_NOMBRE = "Nombre: "
+_NOMBRE_PACIENTE = "Nombre del paciente: "
+_DOCTOR = "Doctor: "
+_PACIENTE_LABEL = "Paciente: "
+
+
 def submenu_admin():
     while True:
         print("\n--- GESTIÓN ADMINISTRATIVA Y REGISTROS ---")
@@ -38,18 +48,18 @@ def submenu_admin():
         print("5. Buscar Doctor (por especialidad)")
         print("6. Filtrar Pacientes (Búsqueda avanzada)")
         print("7. Buscar Paciente")
-        print("0. Regresar al menú principal")
+        print(_BACK)
 
         try:
-            choice = int(input("\nSeleccione una opción: "))
+            choice = int(input(_SELECT))
         except ValueError:
-            print("Entrada inválida.")
+            print(_INVALID)
             continue
 
         match choice:
             case 1:
                 data = {
-                    "nombre": input("Nombre: "),
+                    "nombre": input(_NOMBRE),
                     "especialidad": input("Especialidad: "),
                     "subespecialidad": input("Subespecialidad: "),
                     "cedula": input("Cédula: "),
@@ -61,7 +71,7 @@ def submenu_admin():
 
             case 2:
                 data = {
-                    "nombre": input("Nombre: "),
+                    "nombre": input(_NOMBRE),
                     "fecha_nac": input("Fecha nacimiento (YYYY-MM-DD): "),
                     "sexo": input("Sexo: "),
                     "telefono": input("Teléfono: "),
@@ -74,7 +84,7 @@ def submenu_admin():
                 print("ID generado:", registrar_paciente(data))
 
             case 3:
-                nombre = input("Nombre del paciente: ")
+                nombre = input(_NOMBRE_PACIENTE)
                 print(crear_expediente(nombre))
 
             case 4:
@@ -99,7 +109,7 @@ def submenu_admin():
             case 0:
                 return
             case _:
-                print("Opción no reconocida.")
+                print(_UNRECOGNIZED)
 
 
 
@@ -110,12 +120,12 @@ def submenu_visitas():
         print("2. Consultar disponibilidad de Doctor")
         print("3. Registrar Check-In (Inicio de Visita)")
         print("4. Registrar Check-Out (Fin de Visita)")
-        print("0. Regresar al menú principal")
+        print(_BACK)
 
         try:
-            choice = int(input("\nSeleccione una opción: "))
+            choice = int(input(_SELECT))
         except ValueError:
-            print("Entrada inválida.")
+            print(_INVALID)
             continue
 
         match choice:
@@ -124,24 +134,24 @@ def submenu_visitas():
                 obtener_visitas_del_dia(fecha)
 
             case 2:
-                doctor = input("Doctor: ")
+                doctor = input(_DOCTOR)
                 fecha = input("Fecha a consultar (YYYY-MM-DD): ")
                 verificar_disponibilidad_doctor(doctor, fecha)
 
             case 3:
-                paciente = input("Paciente: ")
-                doctor = input("Doctor: ")
+                paciente = input(_PACIENTE_LABEL)
+                doctor = input(_DOCTOR)
                 registro_inicio_visita(paciente, doctor)
 
 
             case 4:
-                paciente = input("Paciente: ")
+                paciente = input(_PACIENTE_LABEL)
                 registro_fin_visita(paciente)
 
             case 0:
                 return
             case _:
-                print("Opción no reconocida.")
+                print(_UNRECOGNIZED)
 
 
 def submenu_clinica(dgraph_client):
@@ -155,12 +165,12 @@ def submenu_clinica(dgraph_client):
         print("6. Solicitar Segunda Opinión")
         print("7. Detectar Conflictos de Tratamiento")
         print("8. Registrar Signo Vital")
-        print("0. Regresar al menú principal")
+        print(_BACK)
 
         try:
-            choice = int(input("\nSeleccione una opción: "))
+            choice = int(input(_SELECT))
         except ValueError:
-            print("Entrada inválida.")
+            print(_INVALID)
             continue
 
         match choice:
@@ -169,27 +179,27 @@ def submenu_clinica(dgraph_client):
                 print(obtener_info_medica(nombre))
 
             case 2:
-                nombre = input("Nombre del paciente: ")
+                nombre = input(_NOMBRE_PACIENTE)
                 doc = input("Nombre del Doctor: ")
                 pade = input("Diagnóstico/Padecimiento: ")
                 doc_val = doc if doc.strip() else None
                 print(agregar_padecimiento(nombre, pade, doc_val))
 
             case 3:
-                nombre = input("Nombre del paciente: ")
+                nombre = input(_NOMBRE_PACIENTE)
                 doc = input("Nombre del doctor: ")
                 tratamiento = input("Medicamento/Tratamiento: ")
                 print(agregar_tratamiento(nombre, doc, tratamiento))
                 print(registrar_receta_por_visita(nombre, doc, tratamiento))
 
             case 4:
-                doctor = input("Doctor: ")
-                paciente = input("Paciente: ")
+                doctor = input(_DOCTOR)
+                paciente = input(_PACIENTE_LABEL)
                 fecha = input("Fecha (YYYY-MM-DD): ")
                 obtener_diagnostico_tratamiento_paciente(doctor, paciente or None, fecha)
 
             case 5:
-                doctor = input("Doctor: ")
+                doctor = input(_DOCTOR)
                 consultar_recetas_por_doctor(doctor)
 
             case 6:
@@ -203,8 +213,8 @@ def submenu_clinica(dgraph_client):
                 print(detectar_conflictos_tratamiento(dgraph_client, pid))
 
             case 8:
-                paciente = input("Paciente: ")
-                doctor = input("Doctor: ")
+                paciente = input(_PACIENTE_LABEL)
+                doctor = input(_DOCTOR)
                 tipo = input("Tipo medición (PRESION, PESO, TEMPERATURA...): ")
                 valor = input("Valor: ")
                 registrar_signo_vital(paciente, doctor, tipo, valor)
@@ -212,7 +222,7 @@ def submenu_clinica(dgraph_client):
             case 0:
                 return
             case _:
-                print("Opción no reconocida.")
+                print(_UNRECOGNIZED)
 
 
 def submenu_analitica(dgraph_client):
@@ -226,12 +236,12 @@ def submenu_analitica(dgraph_client):
         print("6. Top Padecimientos por Especialidad")
         print("7. Estadística: Edad Promedio por Padecimiento")
         print("8. Estadística: Distribución de Edades (Buckets)")
-        print("0. Regresar al menú principal")
+        print(_BACK)
 
         try:
-            choice = int(input("\nSeleccione una opción: "))
+            choice = int(input(_SELECT))
         except ValueError:
-            print("Entrada inválida.")
+            print(_INVALID)
             continue
 
         match choice:
@@ -269,7 +279,7 @@ def submenu_analitica(dgraph_client):
             case 0:
                 return
             case _:
-                print("Opción no reconocida.")
+                print(_UNRECOGNIZED)
 
 
 def main():

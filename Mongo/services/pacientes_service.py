@@ -1,3 +1,5 @@
+_PACIENTE_NO_ENCONTRADO = "Paciente no encontrado."
+
 from Mongo.mongo import pacientes, expedientes
 from Mongo.utils import get_paciente_id
 from bson import ObjectId
@@ -17,7 +19,7 @@ def registrar_paciente(data: dict) -> str:
                 try:
                     nac = datetime.strptime(data["fecha_nac"], "%Y-%m-%d")
                     edad = datetime.now().year - nac.year
-                except:
+                except Exception:
                     pass
 
             dg_utils.crear_paciente(
@@ -27,7 +29,7 @@ def registrar_paciente(data: dict) -> str:
                 edad,
                 data.get('direccion', 'S/D')
             )
-            print(f"[Sync]")
+            print("[Sync]")
         except Exception as e:
             print(f"[Sync Error] {e}")
 
@@ -43,7 +45,7 @@ def buscar_paciente_por_id(paciente_id: str):
     paciente = pacientes.find_one({"_id": ObjectId(paciente_id)})
 
     if not paciente:
-        return {"error": "Paciente no encontrado."}
+        return {"error": _PACIENTE_NO_ENCONTRADO}
 
     return print(f"NOMBRE: {paciente['nombre']}, FECHA_NAC: {paciente['fecha_nac']}, SEXO: {paciente['sexo']}, TELEFONO: {paciente['telefono']}, CORREO: {paciente['correo']}, CONTACTO EMERGENCIA: {paciente['cont_eme']}, DIRECCION: {paciente['direccion']}, SEGURO: {paciente['seguro']}, POLIZA: {paciente['poliza']}")
 
@@ -56,7 +58,7 @@ def buscar_paciente_por_nombre(nombre: str):
     paciente = pacientes.find_one({"nombre": {"$regex": nombre, "$options": "i"}})
 
     if not paciente:
-        return {"error": "Paciente no encontrado."}
+        return {"error": _PACIENTE_NO_ENCONTRADO}
 
     paciente["_id"] = str(paciente["_id"])
     return print(f"NOMBRE: {paciente['nombre']}, FECHA_NAC: {paciente['fecha_nac']}, SEXO: {paciente['sexo']}, TELEFONO: {paciente['telefono']}, CORREO: {paciente['correo']}, CONTACTO EMERGENCIA: {paciente['cont_eme']}, DIRECCION: {paciente['direccion']}, SEGURO: {paciente['seguro']}, POLIZA: {paciente['poliza']}")
@@ -75,7 +77,7 @@ def obtener_paciente_y_expediente(id_o_nombre: str):
         paciente = pacientes.find_one({"nombre": {"$regex": id_o_nombre, "$options": "i"}})
 
     if not paciente:
-        return "Paciente no encontrado."
+        return _PACIENTE_NO_ENCONTRADO
 
     expediente = expedientes.find_one({"paciente_id": paciente["_id"]})
 
@@ -151,7 +153,7 @@ def obtener_info_medica(id_o_nombre: str):
     if not expediente:
         return "Paciente no tiene expediente creado"
 
-    paciente = buscar_paciente_por_id(paciente_id)
+    buscar_paciente_por_id(paciente_id)
 
     return {
         "alergias": expediente["alergias"] if expediente else [],

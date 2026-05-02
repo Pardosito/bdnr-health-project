@@ -1,0 +1,9 @@
+[run]
+omit =
+    tests/*
+    populate.py
+
+[report]
+omit =
+    tests/*
+    populate.py

@@ -3,7 +3,7 @@ from . import model
 from cassandra.cluster import Cluster
 from Cassandra.utils import timeuuid_a_hora
 from Mongo.utils import get_doctor_id, get_paciente_id, get_doctor_by_id, get_paciente_by_id
-from .utils import get_visita_id, get_visita_activa, visitasEnum, medicionesEnum
+from .utils import get_visita_id, get_visita_activa, VisitasEnum, MedicionesEnum
 import uuid
 from connect import get_cassandra
 from datetime import date, datetime
@@ -73,7 +73,7 @@ def registrar_signo_vital(nombre_paciente, nombre_doctor, tipo_medicion, valor):
 
   enum_member = None
   try:
-    for m in medicionesEnum:
+    for m in MedicionesEnum:
       if m.name.lower() == str(tipo_medicion).strip().lower():
         enum_member = m
         break
@@ -81,7 +81,7 @@ def registrar_signo_vital(nombre_paciente, nombre_doctor, tipo_medicion, valor):
     enum_member = None
 
   if enum_member is None:
-    valid = ", ".join([m.name for m in medicionesEnum])
+    valid = ", ".join([m.name for m in MedicionesEnum])
     print(f"Tipo de medición inválido: '{tipo_medicion}'. Valores válidos: {valid}")
     return None
 

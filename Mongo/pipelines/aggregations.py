@@ -1,6 +1,8 @@
 from Mongo.mongo import expedientes
 from datetime import datetime
 
+_MATCH = "$match"
+
 # Utilidad interna: convertir fecha_nac a edad
 def _calcular_edad(fecha_nac_str):
     try:
@@ -14,7 +16,7 @@ def _calcular_edad(fecha_nac_str):
 # Edad promedio + frecuencia de medicamentos
 def edad_promedio_y_meds(diagnostico: str):
     pipeline = [
-        {"$match": {"padecimientos": diagnostico}},
+        {_MATCH: {"padecimientos": diagnostico}},
 
         {"$lookup": {
             "from": "pacientes",
@@ -70,7 +72,7 @@ def edad_promedio_y_meds(diagnostico: str):
     # Bucket de edades por diagnóstico
 def buckets_por_edad(diagnostico: str):
     pipeline = [
-        {"$match": {"padecimientos": diagnostico}},
+        {_MATCH: {"padecimientos": diagnostico}},
 
         {"$lookup": {
             "from": "pacientes",
@@ -104,7 +106,7 @@ def buckets_por_edad(diagnostico: str):
             }
         }},
 
-        {"$match": {"edad": {"$gte": 0}}},
+        {_MATCH: {"edad": {"$gte": 0}}},
 
         {"$bucket": {
             "groupBy": "$edad",
